@@ -49,6 +49,8 @@ tests/
 ```
 
 # Guidelines (IMPORTANT)
+- Never use full path with Bash commands
+- You are already in the project root. No need to use `cd` 
 - Always test small segments before writing code to make sure they work as intended
 - Never write big segments of code all at once. Test first (run sample in line code if you have to)
 - Start small when writing code, then incremently add more logic
