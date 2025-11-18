@@ -263,6 +263,9 @@ class VectorizedSnakeEnv:
         # Combine termination conditions
         self.dones = terminated | truncated
 
+        # Save done flags before auto-reset (important for training)
+        dones_output = self.dones.clone()
+
         # Auto-reset done environments
         if self.dones.any():
             self._reset_done_envs()
@@ -277,7 +280,7 @@ class VectorizedSnakeEnv:
             'snake_lengths': self.snake_lengths.clone()
         }
 
-        return obs, rewards, self.dones.clone(), info
+        return obs, rewards, dones_output, info
 
     def _actions_to_directions(self, actions: torch.Tensor) -> torch.Tensor:
         """Convert actions to directions"""
