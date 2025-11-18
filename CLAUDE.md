@@ -36,6 +36,18 @@ core/
 tests/
 ```
 
+## Running python scripts
+```
+# running a single script
+./venv/Scripts/python.exe path/to/script
+
+# running inline script
+./venv/Scripts/python.exe -c "[script]"
+
+# running tests
+./venv/Scripts/python.exe -m pytest path/to/test
+```
+
 # Guidelines (IMPORTANT)
 - Always test small segments before writing code to make sure they work as intended
 - Never write big segments of code all at once. Test first (run sample in line code if you have to)
