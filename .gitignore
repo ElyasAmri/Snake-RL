@@ -1,0 +1,87 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Training artifacts
+models/
+logs/
+recordings/
+plots/
+animations/
+*.pth
+*.csv
+*.gif
+*.mp4
+
+# Jupyter Notebook
+.ipynb_checkpoints
+# Note: We DO want to track experiment notebooks in experiments/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# LaTeX artifacts
+*.aux
+*.log
+*.out
+*.synctex.gz
+*.toc
+*.bbl
+*.blg
+*.fls
+*.fdb_latexmk
+*.nav
+*.snm
+*.vrb
+
+# PDF files (artifacts)
+*.pdf
+
+# Compressed files
+*.zip
+*.tar.gz
+*.rar
+
+# Temporary files
+*.tmp
+nul
+
+# Coverage reports
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Local files
+*.local*
+email.txt
+timestamp.txt
+recordings*
+.claude/
+TASK.md
+models*/
+timestamp.txt
+timestamps.txt
