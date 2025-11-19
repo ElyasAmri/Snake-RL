@@ -1,7 +1,7 @@
 """
-Train DQN with MLP and Flood-Fill Features
+Train DQN with MLP and Selective Features
 
-Standalone script for training DQN with 14-dimensional feature state representation including flood-fill.
+Standalone script for training DQN with 19-dimensional feature state representation including flood-fill and selective features.
 """
 
 import sys
@@ -14,7 +14,7 @@ from scripts.training.train_dqn import DQNTrainer
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Train DQN-MLP with Flood-Fill on Snake game')
+    parser = argparse.ArgumentParser(description='Train DQN-MLP with Selective Features on Snake game')
 
     # Training config
     parser.add_argument('--episodes', type=int, default=1000, help='Number of episodes to train')
@@ -22,7 +22,7 @@ def main():
     parser.add_argument('--max-steps', type=int, default=500, help='Max steps per episode')
 
     # Network config
-    parser.add_argument('--hidden-dims', type=int, nargs='+', default=[128, 128], help='Hidden layer dimensions')
+    parser.add_argument('--hidden-dims', type=int, nargs='+', default=[256, 256], help='Hidden layer dimensions')
 
     # DQN config
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate')
@@ -38,12 +38,12 @@ def main():
     # Other
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
     parser.add_argument('--log-interval', type=int, default=50, help='Logging interval')
-    parser.add_argument('--save-path', type=str, default='results/weights/dqn_mlp_floodfill_128x128.pt', help='Path to save weights')
+    parser.add_argument('--save-path', type=str, default='results/weights/dqn_mlp_selective_large_256x256.pt', help='Path to save weights')
 
     args = parser.parse_args()
 
     print('='*70)
-    print('Training DQN-MLP with Flood-Fill (14-feature State)')
+    print('Training DQN-MLP with Selective Features (19-feature State)')
     print('='*70)
     print(f'Configuration:')
     print(f'  Episodes: {args.episodes}')
@@ -57,17 +57,18 @@ def main():
     print(f'  Epsilon: {args.epsilon_start} -> {args.epsilon_end} (decay={args.epsilon_decay})')
     print(f'  Target Update Freq: {args.target_update_freq}')
     print(f'  Save Path: {args.save_path}')
-    print(f'  FLOOD-FILL FEATURES: ENABLED (14 features)')
+    print(f'  FEATURES: Flood-fill + Selective features (19 features)')
     print('='*70)
     print()
 
-    # Create trainer with flood-fill enabled
+    # Create trainer with flood-fill and selective features enabled
     trainer = DQNTrainer(
         num_envs=args.envs,
         grid_size=10,
         action_space_type='relative',
         state_representation='feature',
         use_flood_fill=True,  # Enable flood-fill features
+        use_selective_features=True,  # Enable selective features
         hidden_dims=tuple(args.hidden_dims),
         num_episodes=args.episodes,
         max_steps=args.max_steps,

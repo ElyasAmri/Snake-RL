@@ -1,7 +1,7 @@
 """
-Train DQN with MLP (Feature-based State)
+Train DQN with MLP (Basic Features)
 
-Standalone script for training DQN with 11-dimensional feature state representation.
+Standalone script for training DQN with 11-dimensional basic feature state representation.
 """
 
 import sys
@@ -38,12 +38,12 @@ def main():
     # Other
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
     parser.add_argument('--log-interval', type=int, default=50, help='Logging interval')
-    parser.add_argument('--save-path', type=str, default='results/weights/dqn_mlp.pt', help='Path to save weights')
+    parser.add_argument('--save-path', type=str, default='results/weights/dqn_mlp_128x128.pt', help='Path to save weights')
 
     args = parser.parse_args()
 
     print('='*70)
-    print('Training DQN-MLP (Feature-based State)')
+    print('Training DQN-MLP with Basic Features (11-feature State)')
     print('='*70)
     print(f'Configuration:')
     print(f'  Episodes: {args.episodes}')
@@ -57,18 +57,22 @@ def main():
     print(f'  Epsilon: {args.epsilon_start} -> {args.epsilon_end} (decay={args.epsilon_decay})')
     print(f'  Target Update Freq: {args.target_update_freq}')
     print(f'  Save Path: {args.save_path}')
+    print(f'  FEATURES: Basic 11 features (no flood-fill, selective, or enhanced)')
     print('='*70)
     print()
 
-    # Create trainer
+    # Create trainer with basic features only
     trainer = DQNTrainer(
         num_envs=args.envs,
         grid_size=10,
         action_space_type='relative',
         state_representation='feature',
+        use_flood_fill=False,  # Disable flood-fill
+        use_selective_features=False,  # Disable selective features
+        use_enhanced_features=False,  # Disable enhanced features
+        hidden_dims=tuple(args.hidden_dims),
         num_episodes=args.episodes,
         max_steps=args.max_steps,
-        hidden_dims=tuple(args.hidden_dims),
         learning_rate=args.lr,
         batch_size=args.batch_size,
         buffer_size=args.buffer_size,

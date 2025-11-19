@@ -22,7 +22,7 @@ def main():
     parser.add_argument('--max-steps', type=int, default=500, help='Max steps per episode')
 
     # Network config
-    parser.add_argument('--hidden-dims', type=int, nargs='+', default=[128, 128], help='Hidden layer dimensions')
+    parser.add_argument('--hidden-dims', type=int, nargs='+', default=[256, 256], help='Hidden layer dimensions')
 
     # DQN config
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate')
@@ -38,7 +38,7 @@ def main():
     # Other
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
     parser.add_argument('--log-interval', type=int, default=50, help='Logging interval')
-    parser.add_argument('--save-path', type=str, default='results/weights/dqn_mlp_floodfill_128x128.pt', help='Path to save weights')
+    parser.add_argument('--save-path', type=str, default='results/weights/dqn_mlp_floodfill_large_256x256.pt', help='Path to save weights')
 
     args = parser.parse_args()
 
