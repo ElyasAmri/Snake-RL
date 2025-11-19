@@ -35,6 +35,9 @@ class DQNTrainer:
         grid_size: int = 10,
         action_space_type: Literal['absolute', 'relative'] = 'relative',
         state_representation: Literal['feature', 'grid'] = 'feature',
+        use_flood_fill: bool = False,
+        use_enhanced_features: bool = False,
+        use_selective_features: bool = False,
 
         # Network config
         hidden_dims: tuple = (128, 128),
@@ -90,6 +93,9 @@ class DQNTrainer:
         self.grid_size = grid_size
         self.action_space_type = action_space_type
         self.state_representation = state_representation
+        self.use_flood_fill = use_flood_fill
+        self.use_enhanced_features = use_enhanced_features
+        self.use_selective_features = use_selective_features
         self.use_dueling = use_dueling
         self.use_noisy = use_noisy
         self.use_double_dqn = use_double_dqn
@@ -113,47 +119,59 @@ class DQNTrainer:
             action_space_type=action_space_type,
             state_representation=state_representation,
             max_steps=max_steps,
+            use_flood_fill=use_flood_fill,
+            use_enhanced_features=use_enhanced_features,
+            use_selective_features=use_selective_features,
             device=self.device
         )
 
         # Create networks
         if state_representation == 'feature':
+            # Determine input dimension based on feature configuration
+            input_dim = 11
+            if use_flood_fill:
+                input_dim = 14
+            if use_selective_features:
+                input_dim = 19
+            if use_enhanced_features:
+                input_dim = 24
+
             if use_noisy:
                 # Noisy DQN with NoisyLinear layers
                 self.policy_net = NoisyDQN_MLP(
-                    input_dim=11,
+                    input_dim=input_dim,
                     output_dim=self.env.action_space.n,
                     hidden_dims=hidden_dims,
                     sigma_init=noisy_sigma
                 ).to(self.device)
 
                 self.target_net = NoisyDQN_MLP(
-                    input_dim=11,
+                    input_dim=input_dim,
                     output_dim=self.env.action_space.n,
                     hidden_dims=hidden_dims,
                     sigma_init=noisy_sigma
                 ).to(self.device)
             elif use_dueling:
                 self.policy_net = DuelingDQN_MLP(
-                    input_dim=11,
+                    input_dim=input_dim,
                     output_dim=self.env.action_space.n,
                     hidden_dims=hidden_dims
                 ).to(self.device)
 
                 self.target_net = DuelingDQN_MLP(
-                    input_dim=11,
+                    input_dim=input_dim,
                     output_dim=self.env.action_space.n,
                     hidden_dims=hidden_dims
                 ).to(self.device)
             else:
                 self.policy_net = DQN_MLP(
-                    input_dim=11,
+                    input_dim=input_dim,
                     output_dim=self.env.action_space.n,
                     hidden_dims=hidden_dims
                 ).to(self.device)
 
                 self.target_net = DQN_MLP(
-                    input_dim=11,
+                    input_dim=input_dim,
                     output_dim=self.env.action_space.n,
                     hidden_dims=hidden_dims
                 ).to(self.device)
