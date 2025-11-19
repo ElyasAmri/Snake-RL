@@ -60,14 +60,14 @@ YYYYMMDD_comparison_type_episodes_descriptor.json
 | `20251119_dqn_mlp_enhanced_large_1000ep.pt` | Enhanced with large network [256,256] | 16.07 | Good |
 | `20251119_dqn_mlp_enhanced_1000ep.pt` | All enhanced features [128,128] | 15.41 | Good |
 | `20251119_dqn_mlp_floodfill_1000ep_baseline.pt` | Baseline flood-fill only | 14.64 | Baseline |
-| `20251119_dqn_mlp_floodfill_500ep_v1.pt` | Earlier controlled test | 3.94 | Archive |
-| `20251119_dqn_mlp_enhanced_500ep_v1.pt` | Earlier controlled test | 2.75 | Archive |
+| `20251119_dqn_mlp_floodfill_500ep_controlled.pt` | Controlled test baseline | 3.94 | Archive |
+| `20251119_dqn_mlp_enhanced_500ep_controlled.pt` | Controlled test enhanced | 2.75 | Archive |
 
 ### Results Data (`results/data/`):
 | Filename | Description |
 |----------|-------------|
 | `20251119_comparison_4way_1000ep_optimized.json` | Main comparison results (4 models) |
-| `20251119_comparison_controlled_500ep_v1.json` | Controlled comparison (baseline vs enhanced) |
+| `20251119_comparison_controlled_500ep.json` | Controlled comparison (baseline vs enhanced) |
 | `20251119_comparison_initial_200ep.json` | Initial exploration |
 
 ## Training Script Run Names
@@ -77,7 +77,7 @@ When running training scripts, use descriptive run names:
 ```bash
 # Good examples:
 --run-name 20251119_1000ep
---run-name selective_v2
+--run-name selective_optimized
 --run-name ablation_tail
 --run-name grid_size_15
 
@@ -85,12 +85,14 @@ When running training scripts, use descriptive run names:
 --run-name final
 --run-name test
 --run-name new
+--run-name v1
+--run-name v2
 ```
 
 ## Notes:
 - Always include date for traceability
 - Use descriptive names that indicate what was tested
-- Avoid "final" - research is iterative
+- Avoid "final" and "v1/v2" - use descriptive words instead
 - Mark best performers with `_best` suffix
 - Archive older experiments but keep them for reference
-- Use `v1`, `v2`, etc. for iterations of same experiment type
+- For iterations, use descriptive terms: `controlled`, `optimized`, `exploratory`, etc.
