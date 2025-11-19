@@ -444,16 +444,18 @@ class PPOTrainer:
 
         print("\nTraining complete!", flush=True)
 
-    def save(self, filepath: str):
+    def save(self, filename: str):
         """Save model weights"""
+        filepath = self.save_dir / filename
         torch.save({
             'actor': self.actor.state_dict(),
             'critic': self.critic.state_dict(),
             'actor_optimizer': self.actor_optimizer.state_dict(),
             'critic_optimizer': self.critic_optimizer.state_dict(),
             'episode': self.episode,
-            'metrics': self.metrics.get_stats()
+            'metrics': self.metrics.get_recent_stats()
         }, filepath)
+        print(f"Model saved to {filepath}")
 
     def load(self, filepath: str):
         """Load model weights"""
