@@ -17,7 +17,7 @@ def main():
     parser = argparse.ArgumentParser(description='Train PER DQN-MLP on Snake game')
 
     # Training config
-    parser.add_argument('--episodes', type=int, default=100000, help='Number of episodes to train')
+    parser.add_argument('--episodes', type=int, default=1000, help='Number of episodes to train')
     parser.add_argument('--envs', type=int, default=256, help='Number of parallel environments')
     parser.add_argument('--max-steps', type=int, default=500, help='Max steps per episode')
 
