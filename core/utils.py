@@ -76,6 +76,206 @@ class ReplayBuffer:
         return len(self.buffer) >= min_size
 
 
+class SumTree:
+    """
+    Sum Tree data structure for Prioritized Experience Replay
+
+    Binary tree where parent node value = sum of children
+    Allows O(log n) updates and O(log n) sampling
+    """
+
+    def __init__(self, capacity: int):
+        """
+        Initialize sum tree
+
+        Args:
+            capacity: Maximum number of leaf nodes (experiences)
+        """
+        self.capacity = capacity
+        self.tree = np.zeros(2 * capacity - 1)
+        self.data = np.zeros(capacity, dtype=object)
+        self.write_idx = 0
+        self.n_entries = 0
+
+    def _propagate(self, idx: int, change: float):
+        """Propagate priority change up the tree"""
+        parent = (idx - 1) // 2
+        self.tree[parent] += change
+        if parent != 0:
+            self._propagate(parent, change)
+
+    def _retrieve(self, idx: int, s: float) -> int:
+        """Retrieve leaf index for priority value s"""
+        left = 2 * idx + 1
+        right = left + 1
+
+        if left >= len(self.tree):
+            return idx
+
+        if s <= self.tree[left]:
+            return self._retrieve(left, s)
+        else:
+            return self._retrieve(right, s - self.tree[left])
+
+    def total(self) -> float:
+        """Get sum of all priorities"""
+        return self.tree[0]
+
+    def add(self, priority: float, data: tuple):
+        """Add new experience with given priority"""
+        idx = self.write_idx + self.capacity - 1
+
+        self.data[self.write_idx] = data
+        self.update(idx, priority)
+
+        self.write_idx = (self.write_idx + 1) % self.capacity
+        self.n_entries = min(self.n_entries + 1, self.capacity)
+
+    def update(self, idx: int, priority: float):
+        """Update priority of experience at tree index"""
+        change = priority - self.tree[idx]
+        self.tree[idx] = priority
+        self._propagate(idx, change)
+
+    def get(self, s: float) -> Tuple[int, float, tuple]:
+        """
+        Get experience corresponding to priority value s
+
+        Returns:
+            (tree_idx, priority, data)
+        """
+        idx = self._retrieve(0, s)
+        data_idx = idx - self.capacity + 1
+        return idx, self.tree[idx], self.data[data_idx]
+
+
+class PrioritizedReplayBuffer:
+    """
+    Prioritized Experience Replay Buffer
+
+    Samples experiences based on TD error magnitude
+    Uses sum-tree for efficient priority-based sampling
+    """
+
+    def __init__(
+        self,
+        capacity: int,
+        alpha: float = 0.6,
+        beta_start: float = 0.4,
+        beta_frames: int = 100000,
+        seed: Optional[int] = None
+    ):
+        """
+        Initialize prioritized replay buffer
+
+        Args:
+            capacity: Maximum number of transitions to store
+            alpha: Priority exponent (0 = uniform, 1 = full prioritization)
+            beta_start: Initial importance sampling weight
+            beta_frames: Number of frames to anneal beta to 1.0
+            seed: Random seed for reproducibility
+        """
+        self.tree = SumTree(capacity)
+        self.capacity = capacity
+        self.alpha = alpha
+        self.beta_start = beta_start
+        self.beta_frames = beta_frames
+        self.frame = 0
+        self.epsilon = 1e-6  # Small constant to prevent zero priority
+
+        if seed is not None:
+            random.seed(seed)
+            np.random.seed(seed)
+
+    def _get_priority(self, td_error: float) -> float:
+        """Convert TD error to priority"""
+        return (abs(td_error) + self.epsilon) ** self.alpha
+
+    def push(
+        self,
+        state: np.ndarray,
+        action: int,
+        reward: float,
+        next_state: np.ndarray,
+        done: bool,
+        td_error: float = None
+    ):
+        """Add transition with priority based on TD error"""
+        # Use max priority if TD error not provided
+        if td_error is None:
+            max_priority = np.max(self.tree.tree[-self.tree.capacity:])
+            if max_priority == 0:
+                max_priority = 1.0
+            priority = max_priority
+        else:
+            priority = self._get_priority(td_error)
+
+        data = (state, action, reward, next_state, done)
+        self.tree.add(priority, data)
+
+    def sample(self, batch_size: int) -> Tuple[torch.Tensor, ...]:
+        """
+        Sample batch with importance sampling weights
+
+        Returns:
+            Tuple of (states, actions, rewards, next_states, dones, indices, weights)
+        """
+        batch = []
+        indices = []
+        priorities = []
+
+        # Divide priority range into batch_size segments
+        segment = self.tree.total() / batch_size
+
+        # Calculate beta for current frame
+        self.frame += 1
+        beta = min(1.0, self.beta_start + self.frame * (1.0 - self.beta_start) / self.beta_frames)
+
+        for i in range(batch_size):
+            # Sample uniformly from each segment
+            a = segment * i
+            b = segment * (i + 1)
+            s = random.uniform(a, b)
+
+            idx, priority, data = self.tree.get(s)
+            batch.append(data)
+            indices.append(idx)
+            priorities.append(priority)
+
+        # Calculate importance sampling weights
+        priorities = np.array(priorities)
+        sampling_probs = priorities / self.tree.total()
+        weights = (self.tree.n_entries * sampling_probs) ** (-beta)
+        weights = weights / weights.max()  # Normalize by max weight
+
+        # Unpack batch
+        states, actions, rewards, next_states, dones = zip(*batch)
+
+        # Convert to tensors
+        states = torch.FloatTensor(np.array(states))
+        actions = torch.LongTensor(actions)
+        rewards = torch.FloatTensor(rewards)
+        next_states = torch.FloatTensor(np.array(next_states))
+        dones = torch.FloatTensor(dones)
+        weights = torch.FloatTensor(weights)
+
+        return states, actions, rewards, next_states, dones, indices, weights
+
+    def update_priorities(self, indices: List[int], td_errors: np.ndarray):
+        """Update priorities for sampled experiences"""
+        for idx, td_error in zip(indices, td_errors):
+            priority = self._get_priority(td_error)
+            self.tree.update(idx, priority)
+
+    def __len__(self) -> int:
+        """Return current buffer size"""
+        return self.tree.n_entries
+
+    def is_ready(self, min_size: int) -> bool:
+        """Check if buffer has enough samples to start training"""
+        return self.tree.n_entries >= min_size
+
+
 class EpsilonScheduler:
     """
     Epsilon-greedy exploration scheduler

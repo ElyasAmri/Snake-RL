@@ -59,6 +59,7 @@ class VectorizedSnakeEnv:
         self.reward_death = reward_death
         self.reward_step = reward_step
         self.reward_distance = reward_distance
+        self.reward_timeout = -5.0  # Penalty for timing out without eating
 
         # Device
         if device is None:
@@ -242,13 +243,10 @@ class VectorizedSnakeEnv:
                 )
                 prev_distances = self.prev_food_distances[needs_distance_reward]
 
-                closer_mask = current_distances < prev_distances
-                farther_mask = current_distances > prev_distances
-
-                # Create temporary rewards array
-                distance_rewards = torch.zeros(needs_distance_reward.sum(), device=self.device)
-                distance_rewards[closer_mask] = 1.0
-                distance_rewards[farther_mask] = -1.0
+                # Scaled distance reward: reward magnitude proportional to distance change
+                # Max Manhattan distance is ~18 in 10x10 grid, normalize to [-0.5, 0.5]
+                distance_change = prev_distances - current_distances
+                distance_rewards = distance_change * 0.5 / self.grid_size
 
                 # Update main rewards
                 rewards[needs_distance_reward] += distance_rewards
@@ -260,11 +258,21 @@ class VectorizedSnakeEnv:
         self.steps += 1
         truncated = self.steps >= self.max_steps
 
+        # Apply timeout penalty for environments that hit max steps without eating
+        rewards[truncated] += self.reward_timeout
+
         # Combine termination conditions
         self.dones = terminated | truncated
 
         # Save done flags before auto-reset (important for training)
         dones_output = self.dones.clone()
+
+        # Save episode info BEFORE auto-reset (so we capture final scores/lengths)
+        info = {
+            'scores': self.scores.clone(),
+            'steps': self.steps.clone(),
+            'snake_lengths': self.snake_lengths.clone()
+        }
 
         # Auto-reset done environments
         if self.dones.any():
@@ -272,13 +280,6 @@ class VectorizedSnakeEnv:
 
         # Get observations
         obs = self._get_observations()
-
-        # Info dict
-        info = {
-            'scores': self.scores.clone(),
-            'steps': self.steps.clone(),
-            'snake_lengths': self.snake_lengths.clone()
-        }
 
         return obs, rewards, dones_output, info
 

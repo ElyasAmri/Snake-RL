@@ -21,8 +21,8 @@ from typing import Optional, Literal
 import time
 
 from core.environment_vectorized import VectorizedSnakeEnv
-from core.networks import DQN_MLP, DQN_CNN
-from core.utils import ReplayBuffer, EpsilonScheduler, MetricsTracker, set_seed, get_device
+from core.networks import DQN_MLP, DQN_CNN, DuelingDQN_MLP, NoisyDQN_MLP
+from core.utils import ReplayBuffer, PrioritizedReplayBuffer, EpsilonScheduler, MetricsTracker, set_seed, get_device
 
 
 class DQNTrainer:
@@ -38,6 +38,18 @@ class DQNTrainer:
 
         # Network config
         hidden_dims: tuple = (128, 128),
+        use_dueling: bool = False,
+        use_noisy: bool = False,
+        noisy_sigma: float = 0.5,
+
+        # DQN variant config
+        use_double_dqn: bool = False,
+        use_prioritized_replay: bool = False,
+        per_alpha: float = 0.6,
+        per_beta_start: float = 0.4,
+        per_beta_frames: int = 100000,
+        use_multistep: bool = False,
+        n_step: int = 3,
 
         # Training config
         learning_rate: float = 0.001,
@@ -78,6 +90,12 @@ class DQNTrainer:
         self.grid_size = grid_size
         self.action_space_type = action_space_type
         self.state_representation = state_representation
+        self.use_dueling = use_dueling
+        self.use_noisy = use_noisy
+        self.use_double_dqn = use_double_dqn
+        self.use_prioritized_replay = use_prioritized_replay
+        self.use_multistep = use_multistep
+        self.n_step = n_step
         self.batch_size = batch_size
         self.gamma = gamma
         self.target_update_freq = target_update_freq
@@ -100,18 +118,49 @@ class DQNTrainer:
 
         # Create networks
         if state_representation == 'feature':
-            self.policy_net = DQN_MLP(
-                input_dim=11,
-                output_dim=self.env.action_space.n,
-                hidden_dims=hidden_dims
-            ).to(self.device)
+            if use_noisy:
+                # Noisy DQN with NoisyLinear layers
+                self.policy_net = NoisyDQN_MLP(
+                    input_dim=11,
+                    output_dim=self.env.action_space.n,
+                    hidden_dims=hidden_dims,
+                    sigma_init=noisy_sigma
+                ).to(self.device)
 
-            self.target_net = DQN_MLP(
-                input_dim=11,
-                output_dim=self.env.action_space.n,
-                hidden_dims=hidden_dims
-            ).to(self.device)
+                self.target_net = NoisyDQN_MLP(
+                    input_dim=11,
+                    output_dim=self.env.action_space.n,
+                    hidden_dims=hidden_dims,
+                    sigma_init=noisy_sigma
+                ).to(self.device)
+            elif use_dueling:
+                self.policy_net = DuelingDQN_MLP(
+                    input_dim=11,
+                    output_dim=self.env.action_space.n,
+                    hidden_dims=hidden_dims
+                ).to(self.device)
+
+                self.target_net = DuelingDQN_MLP(
+                    input_dim=11,
+                    output_dim=self.env.action_space.n,
+                    hidden_dims=hidden_dims
+                ).to(self.device)
+            else:
+                self.policy_net = DQN_MLP(
+                    input_dim=11,
+                    output_dim=self.env.action_space.n,
+                    hidden_dims=hidden_dims
+                ).to(self.device)
+
+                self.target_net = DQN_MLP(
+                    input_dim=11,
+                    output_dim=self.env.action_space.n,
+                    hidden_dims=hidden_dims
+                ).to(self.device)
         else:  # grid
+            if use_noisy:
+                raise ValueError("Noisy DQN currently only supports feature-based state (MLP)")
+
             self.policy_net = DQN_CNN(
                 grid_size=grid_size,
                 input_channels=3,
@@ -132,7 +181,16 @@ class DQNTrainer:
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=learning_rate)
 
         # Replay buffer
-        self.replay_buffer = ReplayBuffer(capacity=buffer_size, seed=seed)
+        if use_prioritized_replay:
+            self.replay_buffer = PrioritizedReplayBuffer(
+                capacity=buffer_size,
+                alpha=per_alpha,
+                beta_start=per_beta_start,
+                beta_frames=per_beta_frames,
+                seed=seed
+            )
+        else:
+            self.replay_buffer = ReplayBuffer(capacity=buffer_size, seed=seed)
 
         # Epsilon scheduler
         self.epsilon_scheduler = EpsilonScheduler(
@@ -150,27 +208,30 @@ class DQNTrainer:
         self.episode = 0
 
     def select_actions(self, states: torch.Tensor) -> torch.Tensor:
-        """Select actions using epsilon-greedy policy"""
-        epsilon = self.epsilon_scheduler.get_epsilon()
-
-        # Random actions with probability epsilon
-        random_mask = torch.rand(self.num_envs, device=self.device) < epsilon
-
-        # Greedy actions
+        """Select actions using epsilon-greedy policy (or greedy for noisy networks)"""
         with torch.no_grad():
+            # Reset noise for noisy networks
+            if self.use_noisy:
+                self.policy_net.reset_noise()
+
             q_values = self.policy_net(states)
             greedy_actions = q_values.argmax(dim=1)
 
-        # Random actions
+        # Noisy networks don't need epsilon-greedy (noise provides exploration)
+        if self.use_noisy:
+            return greedy_actions
+
+        # Epsilon-greedy for non-noisy networks
+        epsilon = self.epsilon_scheduler.get_epsilon()
+        random_mask = torch.rand(self.num_envs, device=self.device) < epsilon
+
         random_actions = torch.randint(
             0, self.env.action_space.n,
             (self.num_envs,),
             device=self.device
         )
 
-        # Combine
         actions = torch.where(random_mask, random_actions, greedy_actions)
-
         return actions
 
     def train_step(self):
@@ -178,8 +239,18 @@ class DQNTrainer:
         if not self.replay_buffer.is_ready(self.batch_size):
             return None
 
+        # Reset noise for noisy networks
+        if self.use_noisy:
+            self.policy_net.reset_noise()
+            self.target_net.reset_noise()
+
         # Sample batch
-        states, actions, rewards, next_states, dones = self.replay_buffer.sample(self.batch_size)
+        if self.use_prioritized_replay:
+            states, actions, rewards, next_states, dones, indices, weights = self.replay_buffer.sample(self.batch_size)
+            weights = weights.to(self.device)
+        else:
+            states, actions, rewards, next_states, dones = self.replay_buffer.sample(self.batch_size)
+
         states = states.to(self.device)
         actions = actions.to(self.device)
         rewards = rewards.to(self.device)
@@ -191,17 +262,39 @@ class DQNTrainer:
 
         # Compute target Q values
         with torch.no_grad():
-            next_q_values = self.target_net(next_states).max(1)[0]
+            if self.use_double_dqn:
+                # Double DQN: use policy net to select actions, target net to evaluate
+                best_actions = self.policy_net(next_states).argmax(1, keepdim=True)
+                next_q_values = self.target_net(next_states).gather(1, best_actions).squeeze()
+            else:
+                # Vanilla DQN: use target net for both selection and evaluation
+                next_q_values = self.target_net(next_states).max(1)[0]
             target_q_values = rewards + self.gamma * next_q_values * (1 - dones)
 
-        # Compute loss
-        loss = nn.functional.mse_loss(current_q_values.squeeze(), target_q_values)
+        # Compute TD errors for PER priority updates
+        td_errors = target_q_values - current_q_values.squeeze()
+
+        # Compute loss (use Huber loss for robustness to large rewards)
+        if self.use_prioritized_replay:
+            # Weighted Huber loss for PER
+            elementwise_loss = nn.functional.smooth_l1_loss(
+                current_q_values.squeeze(), target_q_values, reduction='none'
+            )
+            loss = (weights * elementwise_loss).mean()
+        else:
+            # Huber loss (smooth_l1_loss) is more robust to outliers than MSE
+            loss = nn.functional.smooth_l1_loss(current_q_values.squeeze(), target_q_values)
 
         # Optimize
         self.optimizer.zero_grad()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), 1.0)
         self.optimizer.step()
+
+        # Update priorities in PER buffer
+        if self.use_prioritized_replay:
+            td_errors_cpu = td_errors.detach().cpu().numpy()
+            self.replay_buffer.update_priorities(indices, td_errors_cpu)
 
         return loss.item()
 
@@ -235,22 +328,26 @@ class DQNTrainer:
             episode_rewards += rewards
             episode_lengths += 1
 
-            # Store transitions (only from first env for buffer efficiency)
-            for i in range(min(4, self.num_envs)):  # Store from 4 envs to increase diversity
-                if self.replay_buffer.is_ready(self.min_buffer_size) or torch.rand(1).item() < 0.1:
-                    self.replay_buffer.push(
-                        states[i].cpu().numpy(),
-                        actions[i].item(),
-                        rewards[i].item(),
-                        next_states[i].cpu().numpy(),
-                        dones[i].item()
-                    )
+            # Store transitions from ALL environments
+            for i in range(self.num_envs):
+                self.replay_buffer.push(
+                    states[i].cpu().numpy(),
+                    actions[i].item(),
+                    rewards[i].item(),
+                    next_states[i].cpu().numpy(),
+                    dones[i].item()
+                )
 
-            # Train
+            # Train multiple times per step to match data collection rate
+            # With N parallel envs, we collect N transitions per step
+            # So we should train proportionally more
             if self.replay_buffer.is_ready(self.min_buffer_size):
-                loss = self.train_step()
-                if loss is not None:
-                    self.metrics.add_loss(loss)
+                # Train once per ~4 collected transitions
+                num_train_steps = max(1, self.num_envs // 4)
+                for _ in range(num_train_steps):
+                    loss = self.train_step()
+                    if loss is not None:
+                        self.metrics.add_loss(loss)
 
             # Update target network
             if self.total_steps % self.target_update_freq == 0:
@@ -304,6 +401,10 @@ class DQNTrainer:
 
         print("Training complete!")
 
+        # Save final model
+        self.save('dqn_mlp.pt')
+        print(f"Final model saved after {self.episode} episodes")
+
     def save(self, filename: str):
         """Save model"""
         filepath = self.save_dir / filename
@@ -319,11 +420,19 @@ class DQNTrainer:
 
 
 if __name__ == '__main__':
-    # Quick test
+    # Full training - match archive performance
+    # With 256 envs, ~3000 episode completions ~= 12 episodes per env
+    # This matches ~1000 episodes on single env in terms of total experience
     trainer = DQNTrainer(
-        num_envs=64,
-        num_episodes=100,
+        num_envs=256,
+        num_episodes=3000,
         state_representation='feature',
-        action_space_type='relative'
+        action_space_type='relative',
+        buffer_size=100000,
+        learning_rate=0.001,
+        batch_size=64,
+        gamma=0.95,
+        epsilon_decay=0.995,
+        target_update_freq=1000
     )
-    trainer.train(verbose=True, log_interval=20)
+    trainer.train(verbose=True, log_interval=100)

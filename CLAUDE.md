@@ -58,3 +58,4 @@ tests/
 - Never write files in root unless justified. Use appropriate folder
 - Always keep everything organized
 - Always search for theory for reinforcement learning agent before making suggestions
+- Record metrics for training models, including time took to train

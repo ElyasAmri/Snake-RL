@@ -195,6 +195,130 @@ class DuelingDQN_MLP(nn.Module):
         return q_values
 
 
+class NoisyLinear(nn.Module):
+    """
+    Noisy Linear Layer for Noisy DQN
+
+    Implements factorized Gaussian noise as per the paper:
+    "Noisy Networks for Exploration" (Fortunato et al., 2017)
+    """
+
+    def __init__(self, in_features: int, out_features: int, sigma_init: float = 0.5):
+        """
+        Initialize noisy linear layer
+
+        Args:
+            in_features: Input dimension
+            out_features: Output dimension
+            sigma_init: Initial noise standard deviation
+        """
+        super().__init__()
+
+        self.in_features = in_features
+        self.out_features = out_features
+        self.sigma_init = sigma_init
+
+        # Learnable parameters: mean weights and biases
+        self.weight_mu = nn.Parameter(torch.empty(out_features, in_features))
+        self.weight_sigma = nn.Parameter(torch.empty(out_features, in_features))
+        self.bias_mu = nn.Parameter(torch.empty(out_features))
+        self.bias_sigma = nn.Parameter(torch.empty(out_features))
+
+        # Register noise buffers (not parameters, won't be trained)
+        self.register_buffer('weight_epsilon', torch.empty(out_features, in_features))
+        self.register_buffer('bias_epsilon', torch.empty(out_features))
+
+        self.reset_parameters()
+        self.reset_noise()
+
+    def reset_parameters(self):
+        """Initialize parameters"""
+        mu_range = 1.0 / (self.in_features ** 0.5)
+        self.weight_mu.data.uniform_(-mu_range, mu_range)
+        self.weight_sigma.data.fill_(self.sigma_init / (self.in_features ** 0.5))
+        self.bias_mu.data.uniform_(-mu_range, mu_range)
+        self.bias_sigma.data.fill_(self.sigma_init / (self.out_features ** 0.5))
+
+    def reset_noise(self):
+        """Sample new noise"""
+        epsilon_in = self._scale_noise(self.in_features)
+        epsilon_out = self._scale_noise(self.out_features)
+
+        # Factorized Gaussian noise
+        self.weight_epsilon.copy_(epsilon_out.outer(epsilon_in))
+        self.bias_epsilon.copy_(epsilon_out)
+
+    @staticmethod
+    def _scale_noise(size: int) -> torch.Tensor:
+        """Generate scaled noise for factorized Gaussian"""
+        x = torch.randn(size)
+        return x.sign() * x.abs().sqrt()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass with noisy weights"""
+        if self.training:
+            # Use noisy weights during training
+            weight = self.weight_mu + self.weight_sigma * self.weight_epsilon
+            bias = self.bias_mu + self.bias_sigma * self.bias_epsilon
+        else:
+            # Use mean weights during evaluation
+            weight = self.weight_mu
+            bias = self.bias_mu
+
+        return F.linear(x, weight, bias)
+
+
+class NoisyDQN_MLP(nn.Module):
+    """
+    Noisy Deep Q-Network with MLP
+
+    Uses NoisyLinear layers instead of regular Linear layers.
+    Removes need for epsilon-greedy exploration.
+    """
+
+    def __init__(
+        self,
+        input_dim: int = 11,
+        output_dim: int = 3,
+        hidden_dims: Tuple[int, ...] = (128, 128),
+        sigma_init: float = 0.5
+    ):
+        """
+        Initialize Noisy DQN MLP
+
+        Args:
+            input_dim: Input feature dimension
+            output_dim: Number of actions
+            hidden_dims: Tuple of hidden layer sizes
+            sigma_init: Initial noise standard deviation
+        """
+        super().__init__()
+
+        layers = []
+        prev_dim = input_dim
+
+        # Hidden layers with NoisyLinear
+        for hidden_dim in hidden_dims:
+            layers.append(NoisyLinear(prev_dim, hidden_dim, sigma_init))
+            layers.append(nn.ReLU())
+            prev_dim = hidden_dim
+
+        # Output layer with NoisyLinear
+        layers.append(NoisyLinear(prev_dim, output_dim, sigma_init))
+
+        self.network = nn.Sequential(*layers)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass"""
+        return self.network(x)
+
+    def reset_noise(self):
+        """Reset noise in all NoisyLinear layers"""
+        for module in self.network.modules():
+            if isinstance(module, NoisyLinear):
+                module.reset_noise()
+
+
 class PPO_Actor_MLP(nn.Module):
     """
     PPO Actor (Policy) Network with MLP

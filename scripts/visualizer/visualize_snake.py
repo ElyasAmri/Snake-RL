@@ -251,12 +251,12 @@ class SnakeVisualizer:
             use_noisy=use_noisy,
             num_episodes=num_episodes,
             max_steps=500,
-            batch_size=32,
-            buffer_size=5000,
-            learning_rate=0.001,
+            batch_size=64,
+            buffer_size=50000,
+            learning_rate=0.0001,
             gamma=0.99,
-            target_update_freq=500,
-            min_buffer_size=500,
+            target_update_freq=1000,
+            min_buffer_size=1000,
             seed=42,
             device=self.device
         )
@@ -279,8 +279,8 @@ class SnakeVisualizer:
             episode_rewards += rewards
             episode_lengths += 1
 
-            # Store transitions
-            for i in range(min(2, trainer.num_envs)):
+            # Store transitions from ALL environments
+            for i in range(trainer.num_envs):
                 trainer.replay_buffer.push(
                     states[i].cpu().numpy(),
                     actions[i].item(),
