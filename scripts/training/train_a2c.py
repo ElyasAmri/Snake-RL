@@ -32,6 +32,7 @@ class A2CTrainer:
         grid_size: int = 10,
         action_space_type: Literal['absolute', 'relative'] = 'relative',
         state_representation: Literal['feature', 'grid'] = 'feature',
+        use_flood_fill: bool = False,
 
         # Network config
         hidden_dims: tuple = (128, 128),
@@ -67,6 +68,7 @@ class A2CTrainer:
         self.grid_size = grid_size
         self.action_space_type = action_space_type
         self.state_representation = state_representation
+        self.use_flood_fill = use_flood_fill
         self.gamma = gamma
         self.entropy_coef = entropy_coef
         self.value_coef = value_coef
@@ -84,19 +86,22 @@ class A2CTrainer:
             action_space_type=action_space_type,
             state_representation=state_representation,
             max_steps=max_steps,
+            use_flood_fill=use_flood_fill,
             device=self.device
         )
 
         # Create networks
         if state_representation == 'feature':
+            input_dim = 14 if use_flood_fill else 11
+
             self.actor = PPO_Actor_MLP(
-                input_dim=11,
+                input_dim=input_dim,
                 output_dim=self.env.action_space.n,
                 hidden_dims=hidden_dims
             ).to(self.device)
 
             self.critic = PPO_Critic_MLP(
-                input_dim=11,
+                input_dim=input_dim,
                 hidden_dims=hidden_dims
             ).to(self.device)
         else:  # grid

@@ -1,0 +1,4 @@
+1. Implement tail-chasing features (easiest, high impact)
+2. Add body awareness features (very simple, good for strategy adaptation)
+3. Implement multi-step lookahead (medium complexity, prevents traps)
+4. Add escape route detection (complements flood-fill nicely)

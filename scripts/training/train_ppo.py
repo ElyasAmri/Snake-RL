@@ -93,6 +93,7 @@ class PPOTrainer:
         grid_size: int = 10,
         action_space_type: Literal['absolute', 'relative'] = 'relative',
         state_representation: Literal['feature', 'grid'] = 'feature',
+        use_flood_fill: bool = False,
 
         # Network config
         hidden_dims: tuple = (128, 128),
@@ -132,6 +133,7 @@ class PPOTrainer:
         self.grid_size = grid_size
         self.action_space_type = action_space_type
         self.state_representation = state_representation
+        self.use_flood_fill = use_flood_fill
         self.rollout_steps = rollout_steps
         self.batch_size = batch_size
         self.epochs_per_rollout = epochs_per_rollout
@@ -153,12 +155,13 @@ class PPOTrainer:
             action_space_type=action_space_type,
             state_representation=state_representation,
             max_steps=max_steps,
+            use_flood_fill=use_flood_fill,
             device=self.device
         )
 
         # Determine input/output dimensions
         if state_representation == 'feature':
-            input_dim = 11
+            input_dim = 14 if use_flood_fill else 11
         else:
             input_dim = grid_size
 
