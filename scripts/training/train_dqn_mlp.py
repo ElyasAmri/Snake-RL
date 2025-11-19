@@ -10,6 +10,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 import argparse
 import time
+from datetime import datetime
 from scripts.training.train_dqn import DQNTrainer
 
 
@@ -90,8 +91,11 @@ def main():
     trainer.train(verbose=True, log_interval=args.log_interval)
     end_time = time.time()
 
-    # Save weights
-    filename = Path(args.save_path).name
+    # Save weights with timestamp
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    base_filename = Path(args.save_path).stem
+    ext = Path(args.save_path).suffix
+    filename = f"{base_filename}_{timestamp}{ext}"
     trainer.save(filename)
     actual_path = trainer.save_dir / filename
     print(f'\nWeights saved to: {actual_path}')
