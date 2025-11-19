@@ -226,7 +226,7 @@ class A2CTrainer:
                         self.metrics.add_episode(
                             reward=episode_rewards[i].item(),
                             length=int(episode_lengths[i].item()),
-                            score=int(info['snake_lengths'][i].item())
+                            score=int(info['scores'][i].item())
                         )
                         episode_rewards[i] = 0
                         episode_lengths[i] = 0
@@ -272,6 +272,10 @@ class A2CTrainer:
 
         print("\nTraining complete!", flush=True)
 
+        # Save final model
+        self.save('a2c.pt')
+        print(f"Final model saved after {completed_episodes} episodes")
+
     def save(self, filename: str):
         """Save model weights"""
         save_path = self.save_dir / filename
@@ -280,3 +284,18 @@ class A2CTrainer:
             'critic_state_dict': self.critic.state_dict(),
         }, save_path)
         return save_path
+
+
+if __name__ == '__main__':
+    # Test training - 500 episodes
+    trainer = A2CTrainer(
+        num_envs=256,
+        num_episodes=500,
+        state_representation='feature',
+        action_space_type='relative',
+        actor_lr=0.0003,
+        critic_lr=0.001,
+        gamma=0.99,
+        rollout_steps=5
+    )
+    trainer.train(verbose=True, log_interval=50)

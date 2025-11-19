@@ -347,7 +347,8 @@ class PPOTrainer:
             # Collect rollout
             self.buffer.clear()
 
-            for _ in range(self.rollout_steps // self.num_envs):
+            # Ensure at least 1 iteration (rollout_steps should be >= num_envs)
+            for _ in range(max(1, self.rollout_steps // self.num_envs)):
                 # Select actions
                 actions, log_probs, values = self.select_actions(states)
 
@@ -444,6 +445,10 @@ class PPOTrainer:
 
         print("\nTraining complete!", flush=True)
 
+        # Save final model
+        self.save('ppo.pt')
+        print(f"Final model saved after {self.episode} episodes")
+
     def save(self, filename: str):
         """Save model weights"""
         filepath = self.save_dir / filename
@@ -465,3 +470,19 @@ class PPOTrainer:
         self.actor_optimizer.load_state_dict(checkpoint['actor_optimizer'])
         self.critic_optimizer.load_state_dict(checkpoint['critic_optimizer'])
         self.episode = checkpoint['episode']
+
+
+if __name__ == '__main__':
+    # Test training - 500 episodes
+    trainer = PPOTrainer(
+        num_envs=256,
+        num_episodes=500,
+        state_representation='feature',
+        action_space_type='relative',
+        actor_lr=0.0003,
+        critic_lr=0.001,
+        gamma=0.99,
+        rollout_steps=2048,  # Should be >= num_envs for proper rollout collection
+        epochs_per_rollout=4
+    )
+    trainer.train(verbose=True, log_interval=50)

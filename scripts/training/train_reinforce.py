@@ -323,6 +323,10 @@ class REINFORCETrainer:
 
         print("\nTraining complete!", flush=True)
 
+        # Save final model
+        self.save('reinforce.pt')
+        print(f"Final model saved after {self.episode} episodes")
+
     def save(self, filename: str):
         """Save model weights"""
         filepath = self.save_dir / filename
@@ -343,11 +347,13 @@ class REINFORCETrainer:
 
 
 if __name__ == '__main__':
-    # Quick test
+    # Test training - 500 episodes
     trainer = REINFORCETrainer(
-        num_envs=64,
-        num_episodes=100,
+        num_envs=256,
+        num_episodes=500,
         state_representation='feature',
-        action_space_type='relative'
+        action_space_type='relative',
+        learning_rate=0.001,
+        gamma=0.99
     )
-    trainer.train(verbose=True, log_interval=20)
+    trainer.train(verbose=True, log_interval=50)

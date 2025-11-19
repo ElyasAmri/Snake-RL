@@ -420,12 +420,10 @@ class DQNTrainer:
 
 
 if __name__ == '__main__':
-    # Full training - match archive performance
-    # With 256 envs, ~3000 episode completions ~= 12 episodes per env
-    # This matches ~1000 episodes on single env in terms of total experience
+    # Test training - 500 episodes
     trainer = DQNTrainer(
         num_envs=256,
-        num_episodes=3000,
+        num_episodes=500,
         state_representation='feature',
         action_space_type='relative',
         buffer_size=100000,
@@ -435,4 +433,4 @@ if __name__ == '__main__':
         epsilon_decay=0.995,
         target_update_freq=1000
     )
-    trainer.train(verbose=True, log_interval=100)
+    trainer.train(verbose=True, log_interval=50)
