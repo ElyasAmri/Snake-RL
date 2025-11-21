@@ -35,7 +35,7 @@ def main():
     # Other
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
     parser.add_argument('--log-interval', type=int, default=50, help='Logging interval')
-    parser.add_argument('--save-path', type=str, default='results/weights/a2c_floodfill.pt', help='Path to save weights')
+    parser.add_argument('--save-path', type=str, default='results/weights/a2c_floodfill_128x128.pt', help='Path to save weights')
 
     args = parser.parse_args()
 
@@ -82,8 +82,12 @@ def main():
     trainer.train(verbose=True, log_interval=args.log_interval)
     end_time = time.time()
 
-    # Save weights
-    filename = Path(args.save_path).name
+    # Save weights with episode count and timestamp
+    from datetime import datetime
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    base_filename = Path(args.save_path).stem
+    ext = Path(args.save_path).suffix
+    filename = f"{base_filename}_{args.episodes}ep_{timestamp}{ext}"
     trainer.save(filename)
     actual_path = trainer.save_dir / filename
     print(f'\nWeights saved to: {actual_path}')

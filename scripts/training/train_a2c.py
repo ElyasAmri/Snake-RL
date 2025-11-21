@@ -276,10 +276,7 @@ class A2CTrainer:
                 )
 
         print("\nTraining complete!", flush=True)
-
-        # Save final model
-        self.save('a2c.pt')
-        print(f"Final model saved after {completed_episodes} episodes")
+        print(f"Training finished after {completed_episodes} episodes")
 
     def save(self, filename: str):
         """Save model weights"""

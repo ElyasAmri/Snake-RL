@@ -418,10 +418,7 @@ class DQNTrainer:
             self.total_steps += 1
 
         print("Training complete!")
-
-        # Save final model
-        self.save('dqn_mlp.pt')
-        print(f"Final model saved after {self.episode} episodes")
+        print(f"Training finished after {self.episode} episodes")
 
     def save(self, filename: str):
         """Save model"""

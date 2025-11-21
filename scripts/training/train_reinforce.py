@@ -325,10 +325,7 @@ class REINFORCETrainer:
                     self.metrics.add_loss(loss)
 
         print("\nTraining complete!", flush=True)
-
-        # Save final model
-        self.save('reinforce.pt')
-        print(f"Final model saved after {self.episode} episodes")
+        print(f"Training finished after {self.episode} episodes")
 
     def save(self, filename: str):
         """Save model weights"""
