@@ -35,6 +35,7 @@ def main():
     parser.add_argument('--epsilon-decay', type=float, default=0.995, help='Epsilon decay rate')
     parser.add_argument('--target-update-freq', type=int, default=1000, help='Target network update frequency')
     parser.add_argument('--min-buffer-size', type=int, default=1000, help='Minimum buffer size before training')
+    parser.add_argument('--train-steps-ratio', type=float, default=0.03125, help='Training steps per collected transition (0.03125=fast, 0.125=balanced, 0.25=quality)')
 
     # Other
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
@@ -83,6 +84,7 @@ def main():
         epsilon_decay=args.epsilon_decay,
         target_update_freq=args.target_update_freq,
         min_buffer_size=args.min_buffer_size,
+        train_steps_ratio=args.train_steps_ratio,
         seed=args.seed
     )
 

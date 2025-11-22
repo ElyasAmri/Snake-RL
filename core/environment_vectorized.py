@@ -55,6 +55,10 @@ class VectorizedSnakeEnv:
             use_selective_features: Whether to use only high-impact features (19-dim: flood-fill + tail features)
             device: PyTorch device (GPU/CPU)
         """
+        # Validate feature flags (selective and enhanced are mutually exclusive)
+        if use_selective_features and use_enhanced_features:
+            raise ValueError("Cannot enable both use_selective_features and use_enhanced_features simultaneously")
+
         self.num_envs = num_envs
         self.grid_size = grid_size
         self.action_space_type = action_space_type
@@ -84,13 +88,18 @@ class VectorizedSnakeEnv:
             self.action_space = spaces.Discrete(3)
 
         if state_representation == 'feature':
-            feature_dim = 11
-            if use_flood_fill:
-                feature_dim = 14
-            if use_selective_features:
-                feature_dim = 19  # 11 base + 3 flood-fill + 5 selective (tail features only)
+            # Feature hierarchy (mutually exclusive modes)
             if use_enhanced_features:
                 feature_dim = 24  # 11 base + 3 flood-fill + 10 enhanced
+                use_flood_fill = True  # Enhanced requires flood-fill
+            elif use_selective_features:
+                feature_dim = 19  # 11 base + 3 flood-fill + 5 selective (tail features only)
+                use_flood_fill = True  # Selective requires flood-fill
+            elif use_flood_fill:
+                feature_dim = 14  # 11 base + 3 flood-fill
+            else:
+                feature_dim = 11  # Base features only
+
             self.observation_space = spaces.Box(
                 low=0, high=1, shape=(num_envs, feature_dim), dtype=np.float32
             )
@@ -598,11 +607,12 @@ class VectorizedSnakeEnv:
         safe_mask: torch.Tensor
     ) -> torch.Tensor:
         """
-        Compute flood-fill free space for multiple starting positions (vectorized).
+        Compute flood-fill free space for multiple starting positions (optimized).
 
-        This uses BFS flood-fill but processes each environment separately on CPU
-        for simplicity. For full GPU optimization, a parallel BFS implementation
-        would be needed.
+        Optimizations:
+        - Batch GPU->CPU transfers (single transfer for all envs)
+        - Early termination for unsafe positions
+        - Optimized BFS with deque and pre-computed bounds
 
         Args:
             start_positions: (num_envs, 2) tensor of starting positions
@@ -613,30 +623,42 @@ class VectorizedSnakeEnv:
         """
         flood_fill_values = torch.zeros(self.num_envs, device=self.device)
 
-        # Process each environment
+        # OPTIMIZATION: Batch GPU->CPU transfer for ALL environments at once
+        start_positions_cpu = start_positions.cpu().numpy()
+        safe_mask_cpu = safe_mask.cpu().numpy()
+        snake_lengths_cpu = self.snake_lengths.cpu().numpy()
+
+        # Find max snake length to batch snake positions transfer
+        max_len = int(snake_lengths_cpu.max())
+        if max_len > 0:
+            snakes_cpu = self.snakes[:, :max_len].cpu().numpy()
+        else:
+            # All snakes are dead (shouldn't happen in normal training)
+            return flood_fill_values
+
+        # Process each environment (BFS must be sequential, but data transfer is batched)
+        max_val = self.grid_size - 1
+
         for env_idx in range(self.num_envs):
-            if not safe_mask[env_idx]:
+            if not safe_mask_cpu[env_idx]:
                 flood_fill_values[env_idx] = 0.0
                 continue
 
-            # Get snake body as set for this environment
-            snake_length = self.snake_lengths[env_idx].item()
-            snake_positions = self.snakes[env_idx, :snake_length].cpu().numpy()
+            # Get snake body as set for this environment (already on CPU)
+            snake_length = snake_lengths_cpu[env_idx]
+            snake_positions = snakes_cpu[env_idx, :snake_length]
             snake_set = set(map(tuple, snake_positions))
 
-            # Starting position
-            start_pos = tuple(start_positions[env_idx].cpu().numpy())
+            # Starting position (already on CPU)
+            start_pos = tuple(start_positions_cpu[env_idx])
 
             # Optimized BFS flood-fill with deque
             visited = set()
             queue = deque([start_pos])
             visited.add(start_pos)
 
-            # Pre-compute bounds
-            max_val = self.grid_size - 1
-
             while queue:
-                current = queue.popleft()  # O(1) instead of O(n)
+                current = queue.popleft()
                 x, y = current
 
                 # Check all 4 neighbors with optimized bounds check
@@ -766,24 +788,39 @@ class VectorizedSnakeEnv:
 
     def _compute_tail_reachability_vectorized(self) -> torch.Tensor:
         """
-        Check if tail is reachable via flood-fill for all environments.
+        Check if tail is reachable via flood-fill for all environments (optimized).
+
+        Optimizations:
+        - Batch GPU->CPU transfers
+        - Early termination when tail is found
 
         Returns:
             (num_envs,) tensor with tail reachability (0 or 1)
         """
         tail_reachability = torch.zeros(self.num_envs, device=self.device)
 
+        # OPTIMIZATION: Batch GPU->CPU transfer
+        snake_lengths_cpu = self.snake_lengths.cpu().numpy()
+        max_len = int(snake_lengths_cpu.max())
+
+        if max_len < 2:
+            # All snakes too short, all tails are "reachable"
+            return torch.ones(self.num_envs, device=self.device)
+
+        snakes_cpu = self.snakes[:, :max_len].cpu().numpy()
+        max_val = self.grid_size - 1
+
         for env_idx in range(self.num_envs):
-            length = self.snake_lengths[env_idx].item()
+            length = snake_lengths_cpu[env_idx]
             if length < 2:
                 tail_reachability[env_idx] = 1.0
                 continue
 
-            head = tuple(self.snakes[env_idx, 0].cpu().numpy())
-            tail = tuple(self.snakes[env_idx, length - 1].cpu().numpy())
+            head = tuple(snakes_cpu[env_idx, 0])
+            tail = tuple(snakes_cpu[env_idx, length - 1])
 
             # Create snake set without tail (tail will move away)
-            snake_positions = self.snakes[env_idx, :length - 1].cpu().numpy()
+            snake_positions = snakes_cpu[env_idx, :length - 1]
             snake_set = set(map(tuple, snake_positions))
 
             # Optimized BFS with deque and early termination
@@ -792,11 +829,9 @@ class VectorizedSnakeEnv:
             visited.add(head)
 
             reachable = False
-            # Pre-compute bounds check values
-            max_val = self.grid_size - 1
 
             while queue:
-                current = queue.popleft()  # O(1) instead of O(n)
+                current = queue.popleft()
 
                 # Early termination if tail found
                 if current == tail:

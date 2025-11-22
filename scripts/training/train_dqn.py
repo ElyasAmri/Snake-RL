@@ -70,6 +70,7 @@ class DQNTrainer:
         num_episodes: int = 10000,
         max_steps: int = 1000,
         min_buffer_size: int = 1000,
+        train_steps_ratio: float = 0.03125,  # Train once per ~32 collected transitions (fast default)
 
         # Curriculum learning
         use_curriculum: bool = False,
@@ -108,6 +109,7 @@ class DQNTrainer:
         self.num_episodes = num_episodes
         self.max_steps = max_steps
         self.min_buffer_size = min_buffer_size
+        self.train_steps_ratio = train_steps_ratio
         self.use_curriculum = use_curriculum
         self.save_dir = Path(save_dir)
         self.save_dir.mkdir(parents=True, exist_ok=True)
@@ -356,12 +358,12 @@ class DQNTrainer:
                     dones[i].item()
                 )
 
-            # Train multiple times per step to match data collection rate
+            # Train multiple times per step based on train_steps_ratio
             # With N parallel envs, we collect N transitions per step
-            # So we should train proportionally more
+            # train_steps_ratio controls how many training steps per collected transition
             if self.replay_buffer.is_ready(self.min_buffer_size):
-                # Train once per ~4 collected transitions
-                num_train_steps = max(1, self.num_envs // 4)
+                # Configurable training frequency (default: ~8 steps with 256 envs)
+                num_train_steps = max(1, int(self.num_envs * self.train_steps_ratio))
                 for _ in range(num_train_steps):
                     loss = self.train_step()
                     if loss is not None:

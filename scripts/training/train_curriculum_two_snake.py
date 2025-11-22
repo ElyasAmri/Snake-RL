@@ -234,7 +234,7 @@ class CurriculumTrainer:
                     agent_type, grid_size=grid_size, device=self.device
                 )
             except Exception as e:
-                print(f"Warning: Could not load {agent_type} agent: {e}")
+                print(f"Warning: Could not load {agent_type} agent: {e}", flush=True)
 
         # Curriculum stages
         self.stages = [
@@ -347,14 +347,14 @@ class CurriculumTrainer:
 
     def train_stage(self, stage: CurriculumStage):
         """Train one curriculum stage"""
-        print("\n" + "="*70)
-        print(f"STAGE {stage.stage_id}: {stage.name}")
-        print("="*70)
-        print(f"Opponent: {stage.opponent_type}")
-        print(f"Min steps: {stage.min_steps}")
-        print(f"Win rate threshold: {stage.win_rate_threshold}")
-        print(f"Description: {stage.description}")
-        print("="*70 + "\n")
+        print("\n" + "="*70, flush=True)
+        print(f"STAGE {stage.stage_id}: {stage.name}", flush=True)
+        print("="*70, flush=True)
+        print(f"Opponent: {stage.opponent_type}", flush=True)
+        print(f"Min steps: {stage.min_steps}", flush=True)
+        print(f"Win rate threshold: {stage.win_rate_threshold}", flush=True)
+        print(f"Description: {stage.description}", flush=True)
+        print("="*70 + "\n", flush=True)
 
         # Reset stage metrics
         self.stage_steps = 0
@@ -460,9 +460,9 @@ class CurriculumTrainer:
 
         # Save checkpoint at end of stage
         self.save_checkpoint(stage.name)
-        print(f"\n[OK] Stage {stage.stage_id} complete!")
-        print(f"  Final win rate: {self.calculate_win_rate():.2%}")
-        print(f"  Total steps in stage: {self.stage_steps}")
+        print(f"\n[OK] Stage {stage.stage_id} complete!", flush=True)
+        print(f"  Final win rate: {self.calculate_win_rate():.2%}", flush=True)
+        print(f"  Total steps in stage: {self.stage_steps}", flush=True)
 
     def log_progress(self, stage: CurriculumStage):
         """Log training progress"""
@@ -480,7 +480,7 @@ class CurriculumTrainer:
               f"Win Rate: {win_rate:.2%} | "
               f"Loss: {avg_loss1:.4f} | "
               f"Scores: {avg_score1:.1f} vs {avg_score2:.1f} | "
-              f"Epsilon: {epsilon1:.3f}")
+              f"Epsilon: {epsilon1:.3f}", flush=True)
 
     def save_checkpoint(self, stage_name: str):
         """Save checkpoint after each stage"""
@@ -492,12 +492,12 @@ class CurriculumTrainer:
         # Save agent1 (big network)
         agent1_path = checkpoint_dir / f"big_256x256_{timestamp}.pt"
         self.agent1.save(str(agent1_path))
-        print(f"Saved agent1: {agent1_path}")
+        print(f"Saved agent1: {agent1_path}", flush=True)
 
         # Save agent2 (small network)
         agent2_path = checkpoint_dir / f"small_128x128_{timestamp}.pt"
         self.agent2.save(str(agent2_path))
-        print(f"Saved agent2: {agent2_path}")
+        print(f"Saved agent2: {agent2_path}", flush=True)
 
         # Save stage metrics
         metrics_path = checkpoint_dir / f"metrics_{timestamp}.json"
@@ -512,21 +512,21 @@ class CurriculumTrainer:
                 'avg_score1': float(np.mean(self.stage_metrics['scores1'])) if self.stage_metrics['scores1'] else 0,
                 'avg_score2': float(np.mean(self.stage_metrics['scores2'])) if self.stage_metrics['scores2'] else 0
             }, f, indent=2)
-        print(f"Saved metrics: {metrics_path}")
+        print(f"Saved metrics: {metrics_path}", flush=True)
 
     def train(self):
         """Run full curriculum training"""
-        print("\n" + "="*70)
-        print("TWO-SNAKE COMPETITIVE CURRICULUM TRAINING")
-        print("="*70)
-        print(f"Device: {self.device}")
-        print(f"Num environments: {self.num_envs}")
-        print(f"Grid size: {self.grid_size}")
-        print(f"Target food: {self.target_food}")
-        print(f"Agent1 (Big): 256x256 network")
-        print(f"Agent2 (Small): 128x128 network")
-        print(f"Total curriculum stages: {len(self.stages)}")
-        print("="*70)
+        print("\n" + "="*70, flush=True)
+        print("TWO-SNAKE COMPETITIVE CURRICULUM TRAINING", flush=True)
+        print("="*70, flush=True)
+        print(f"Device: {self.device}", flush=True)
+        print(f"Num environments: {self.num_envs}", flush=True)
+        print(f"Grid size: {self.grid_size}", flush=True)
+        print(f"Target food: {self.target_food}", flush=True)
+        print(f"Agent1 (Big): 256x256 network", flush=True)
+        print(f"Agent2 (Small): 128x128 network", flush=True)
+        print(f"Total curriculum stages: {len(self.stages)}", flush=True)
+        print("="*70, flush=True)
 
         start_time = time.time()
 
@@ -542,15 +542,15 @@ class CurriculumTrainer:
         total_time = time.time() - start_time
 
         # Final summary
-        print("\n" + "="*70)
-        print("TRAINING COMPLETE!")
-        print("="*70)
-        print(f"Total time: {total_time/60:.1f} minutes")
-        print(f"Total steps: {self.total_steps}")
-        print(f"Total rounds: {self.total_rounds}")
-        print(f"Final win rate: {self.calculate_win_rate():.2%}")
-        print(f"Models saved to: {self.save_dir}")
-        print("="*70 + "\n")
+        print("\n" + "="*70, flush=True)
+        print("TRAINING COMPLETE!", flush=True)
+        print("="*70, flush=True)
+        print(f"Total time: {total_time/60:.1f} minutes", flush=True)
+        print(f"Total steps: {self.total_steps}", flush=True)
+        print(f"Total rounds: {self.total_rounds}", flush=True)
+        print(f"Final win rate: {self.calculate_win_rate():.2%}", flush=True)
+        print(f"Models saved to: {self.save_dir}", flush=True)
+        print("="*70 + "\n", flush=True)
 
 
 def main():
