@@ -20,6 +20,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.cuda.amp import autocast, GradScaler  # For FP16 mixed precision training
 import numpy as np
 import time
 import argparse
@@ -43,6 +44,7 @@ class CurriculumStage:
     min_steps: int
     win_rate_threshold: Optional[float]  # None for final stage
     description: str
+    target_food: int = 10  # Food needed to win (progressive difficulty)
     agent2_trains: bool = False  # Whether agent2 trains in this stage
 
 
@@ -72,14 +74,20 @@ class TwoSnakeDQN:
         # Optimizer
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=learning_rate)
 
+        # FP16 Mixed Precision: GradScaler for automatic loss scaling
+        self.scaler = GradScaler()
+
         # Replay buffer
         self.replay_buffer = ReplayBuffer(capacity=50000, seed=42)
 
         # Epsilon scheduler
+        # FIXED: Extended decay from 5000 to 52500 to cover full curriculum
+        # This ensures exploration throughout all stages, not just Stage 0
         self.epsilon_scheduler = EpsilonScheduler(
             epsilon_start=1.0,
             epsilon_end=0.01,
-            epsilon_decay=5000
+            epsilon_decay=52500,  # Match total curriculum steps (5K+7.5K+10K+10K+20K)
+            decay_type='linear'
         )
 
         # Stats
@@ -118,23 +126,27 @@ class TwoSnakeDQN:
         next_states = next_states.to(self.device)
         dones = dones.to(self.device)
 
-        # Compute Q values
-        q_values = self.policy_net(states)
-        q_values = q_values.gather(1, actions.unsqueeze(1)).squeeze(1)
+        # FP16 Mixed Precision: Wrap forward pass in autocast
+        with autocast():
+            # Compute Q values
+            q_values = self.policy_net(states)
+            q_values = q_values.gather(1, actions.unsqueeze(1)).squeeze(1)
 
-        # Compute target Q values
-        with torch.no_grad():
-            next_q_values = self.target_net(next_states).max(dim=1)[0]
-            target_q_values = rewards + self.gamma * next_q_values * (1 - dones)
+            # Compute target Q values
+            with torch.no_grad():
+                next_q_values = self.target_net(next_states).max(dim=1)[0]
+                target_q_values = rewards + self.gamma * next_q_values * (1 - dones)
 
-        # Compute loss
-        loss = nn.functional.mse_loss(q_values, target_q_values)
+            # Compute loss
+            loss = nn.functional.mse_loss(q_values, target_q_values)
 
-        # Optimize
+        # FP16 Mixed Precision: Scale loss and backward pass
         self.optimizer.zero_grad()
-        loss.backward()
+        self.scaler.scale(loss).backward()
+        self.scaler.unscale_(self.optimizer)  # Unscale before clipping
         torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), 10.0)
-        self.optimizer.step()
+        self.scaler.step(self.optimizer)
+        self.scaler.update()
 
         self.training_steps += 1
         return loss.item()
@@ -142,6 +154,16 @@ class TwoSnakeDQN:
     def update_target_network(self):
         """Update target network"""
         self.target_net.load_state_dict(self.policy_net.state_dict())
+
+    def reset_epsilon(self, epsilon_start: float = 1.0, epsilon_end: float = 0.01, epsilon_decay: int = 10000):
+        """Reset epsilon scheduler for new curriculum stage"""
+        self.epsilon_scheduler = EpsilonScheduler(
+            epsilon_start=epsilon_start,
+            epsilon_end=epsilon_end,
+            epsilon_decay=epsilon_decay,
+            decay_type='linear'
+        )
+        print(f"  >> {self.name}: Reset epsilon ({epsilon_start:.2f} -> {epsilon_end:.2f} over {epsilon_decay} steps)", flush=True)
 
     def save(self, filepath: str):
         """Save model"""
@@ -170,13 +192,14 @@ class CurriculumTrainer:
     def __init__(
         self,
         num_envs: int = 128,
-        grid_size: int = 10,
+        grid_size: int = 20,  # FIXED: Changed from 10 to 20 to match PPO success
         target_food: int = 10,
         max_steps: int = 1000,
         learning_rate: float = 0.001,
         gamma: float = 0.99,
         batch_size: int = 64,
         target_update_freq: int = 1000,
+        train_steps_ratio: float = 0.125,  # OPTIMIZED: Reduced from 0.25 (train every 8th step instead of 4th)
         log_interval: int = 100,
         save_dir: str = 'results/weights/competitive',
         device: Optional[torch.device] = None,
@@ -192,6 +215,7 @@ class CurriculumTrainer:
         self.target_food = target_food
         self.batch_size = batch_size
         self.target_update_freq = target_update_freq
+        self.train_steps_ratio = train_steps_ratio
         self.log_interval = log_interval
         self.save_dir = Path(save_dir)
         self.save_dir.mkdir(parents=True, exist_ok=True)
@@ -231,56 +255,61 @@ class CurriculumTrainer:
         for agent_type in ['static', 'random', 'greedy', 'defensive']:
             try:
                 self.scripted_agents[agent_type] = get_scripted_agent(
-                    agent_type, grid_size=grid_size, device=self.device
+                    agent_type, device=self.device
                 )
             except Exception as e:
                 print(f"Warning: Could not load {agent_type} agent: {e}", flush=True)
 
-        # Curriculum stages
+        # Curriculum stages (OPTIMIZED: Reduced from 800K to 52.5K total steps based on empirical testing)
         self.stages = [
             CurriculumStage(
                 stage_id=0,
                 name="Stage0_Static",
                 opponent_type="static",
-                min_steps=50000,
+                min_steps=5000,  # OPTIMIZED: Reduced 75% from 20K (originally 50K)
                 win_rate_threshold=0.70,
                 description="Learn basic movement vs static opponent",
+                target_food=10,  # Easy: static opponent doesn't move
                 agent2_trains=False
             ),
             CurriculumStage(
                 stage_id=1,
                 name="Stage1_Random",
                 opponent_type="random",
-                min_steps=50000,
+                min_steps=7500,  # OPTIMIZED: Reduced 62.5% from 20K (originally 50K)
                 win_rate_threshold=0.60,
                 description="Handle unpredictable opponent",
+                target_food=10,  # Medium: random opponent is inefficient
                 agent2_trains=False
             ),
             CurriculumStage(
                 stage_id=2,
                 name="Stage2_Greedy",
                 opponent_type="greedy",
-                min_steps=100000,
+                min_steps=10000,  # OPTIMIZED: Reduced 67% from 30K (originally 100K)
                 win_rate_threshold=0.55,
                 description="Compete for food against optimal food-seeker",
+                target_food=4,  # FIXED: Reduced from 10 (greedy opponent is very effective)
                 agent2_trains=False
             ),
             CurriculumStage(
                 stage_id=3,
                 name="Stage3_Frozen",
                 opponent_type="frozen",
-                min_steps=100000,
+                min_steps=10000,  # OPTIMIZED: Reduced 67% from 30K (originally 100K)
                 win_rate_threshold=0.50,
                 description="Face frozen small network",
+                target_food=6,  # FIXED: Progressive difficulty (harder than greedy)
                 agent2_trains=False
             ),
             CurriculumStage(
                 stage_id=4,
                 name="Stage4_CoEvolution",
                 opponent_type="learning",
-                min_steps=500000,
+                min_steps=20000,  # OPTIMIZED: Reduced 87% from 150K (originally 500K)
                 win_rate_threshold=None,
                 description="Both networks learning simultaneously",
+                target_food=8,  # FIXED: Progressive difficulty (both learning together)
                 agent2_trains=True
             )
         ]
@@ -353,8 +382,28 @@ class CurriculumTrainer:
         print(f"Opponent: {stage.opponent_type}", flush=True)
         print(f"Min steps: {stage.min_steps}", flush=True)
         print(f"Win rate threshold: {stage.win_rate_threshold}", flush=True)
+        print(f"Target food: {stage.target_food}", flush=True)
         print(f"Description: {stage.description}", flush=True)
         print("="*70 + "\n", flush=True)
+
+        # Update environment's target_food for this stage
+        self.env.target_food = stage.target_food
+
+        # FIXED: Reset epsilon for each stage to enable exploration
+        # Agent1 always trains, so always reset its epsilon
+        self.agent1.reset_epsilon(
+            epsilon_start=0.8,  # Start with strong exploration
+            epsilon_end=0.01,
+            epsilon_decay=stage.min_steps
+        )
+
+        # Agent2 only resets epsilon if it's training in this stage
+        if stage.agent2_trains:
+            self.agent2.reset_epsilon(
+                epsilon_start=0.8,
+                epsilon_end=0.01,
+                epsilon_decay=stage.min_steps
+            )
 
         # Reset stage metrics
         self.stage_steps = 0
@@ -369,15 +418,29 @@ class CurriculumTrainer:
         # Reset environment
         obs1, obs2 = self.env.reset()
 
+        # PHASE 1 PROFILING: Initialize timing stats
+        timing_stats = {
+            'get_actions': [],
+            'env_step': [],
+            'store_transitions': [],
+            'training': [],
+            'other': []
+        }
+
         # Main training loop
         while not self.should_advance_stage(stage):
             # Get actions
+            t0 = time.perf_counter()
             actions1, actions2 = self.get_actions(obs1, obs2, stage)
+            timing_stats['get_actions'].append(time.perf_counter() - t0)
 
             # Environment step
+            t0 = time.perf_counter()
             next_obs1, next_obs2, r1, r2, dones, info = self.env.step(actions1, actions2)
+            timing_stats['env_step'].append(time.perf_counter() - t0)
 
             # Store transitions for agent1 (always training)
+            t0 = time.perf_counter()
             states1_np = obs1.cpu().numpy()
             actions1_np = actions1.cpu().numpy()
             rewards1_np = r1.cpu().numpy()
@@ -408,17 +471,24 @@ class CurriculumTrainer:
                         next_states2_np[i],
                         dones_np[i]
                     )
+            timing_stats['store_transitions'].append(time.perf_counter() - t0)
 
-            # Train agent1
-            loss1 = self.agent1.train_step(self.batch_size)
-            if loss1 is not None:
-                self.stage_metrics['losses1'].append(loss1)
+            # Control training frequency
+            should_train = (self.total_steps % max(1, int(1 / self.train_steps_ratio)) == 0)
 
-            # Train agent2 (if applicable)
-            if stage.agent2_trains:
+            # Train agent1 (only when should_train is True)
+            t0 = time.perf_counter()
+            if should_train:
+                loss1 = self.agent1.train_step(self.batch_size)
+                if loss1 is not None:
+                    self.stage_metrics['losses1'].append(loss1)
+
+            # Train agent2 (if applicable and should_train is True)
+            if stage.agent2_trains and should_train:
                 loss2 = self.agent2.train_step(self.batch_size)
                 if loss2 is not None:
                     self.stage_metrics['losses2'].append(loss2)
+            timing_stats['training'].append(time.perf_counter() - t0)
 
             # Update target networks
             if self.total_steps % self.target_update_freq == 0:
@@ -433,15 +503,17 @@ class CurriculumTrainer:
 
             # Track completed rounds
             if dones.any():
-                done_indices = torch.where(dones)[0]
-                for idx in done_indices:
-                    winner = self.env.round_winners[idx].item()
-                    self.round_winners.append(winner)
+                # Use info dict to get winners (saved before auto-reset)
+                num_done = len(info['done_envs'])
+                for i in range(num_done):
+                    env_idx = info['done_envs'][i]
+                    winner = info['winners'][i]
+                    self.round_winners.append(int(winner))
                     self.total_rounds += 1
 
                     # Track metrics
-                    self.stage_metrics['scores1'].append(self.env.food_counts1[idx].item())
-                    self.stage_metrics['scores2'].append(self.env.food_counts2[idx].item())
+                    self.stage_metrics['scores1'].append(info['food_counts1'][i])
+                    self.stage_metrics['scores2'].append(info['food_counts2'][i])
 
             # Update state
             obs1 = next_obs1
@@ -456,6 +528,19 @@ class CurriculumTrainer:
 
             # Logging
             if self.total_steps % self.log_interval == 0:
+                # PHASE 1 PROFILING: Print timing stats
+                print("\n" + "="*70, flush=True)
+                print(f"TIMING ANALYSIS (Step {self.total_steps})", flush=True)
+                print("="*70, flush=True)
+                for key, times in timing_stats.items():
+                    if times:
+                        # Use last log_interval samples
+                        recent = times[-self.log_interval:]
+                        avg_ms = np.mean(recent) * 1000
+                        total_ms = np.sum(recent) * 1000
+                        print(f"{key:20s}: {avg_ms:8.2f} ms avg | {total_ms:10.1f} ms total", flush=True)
+                print("="*70 + "\n", flush=True)
+
                 self.log_progress(stage)
 
         # Save checkpoint at end of stage
@@ -557,10 +642,11 @@ def main():
     """Main training function"""
     parser = argparse.ArgumentParser(description='Two-Snake Competitive Curriculum Training')
     parser.add_argument('--num-envs', type=int, default=128, help='Number of parallel environments')
-    parser.add_argument('--grid-size', type=int, default=10, help='Grid size')
+    parser.add_argument('--grid-size', type=int, default=20, help='Grid size (FIXED: changed from 10 to 20)')
     parser.add_argument('--target-food', type=int, default=10, help='Food needed to win')
     parser.add_argument('--learning-rate', type=float, default=0.001, help='Learning rate')
     parser.add_argument('--batch-size', type=int, default=64, help='Batch size')
+    parser.add_argument('--train-steps-ratio', type=float, default=0.25, help='Training steps per collected transition (0.03125=fast, 0.25=balanced, 0.5=quality)')
     parser.add_argument('--save-dir', type=str, default='results/weights/competitive', help='Save directory')
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
     parser.add_argument('--log-interval', type=int, default=100, help='Logging interval')
@@ -574,6 +660,7 @@ def main():
         target_food=args.target_food,
         learning_rate=args.learning_rate,
         batch_size=args.batch_size,
+        train_steps_ratio=args.train_steps_ratio,
         log_interval=args.log_interval,
         save_dir=args.save_dir,
         seed=args.seed
