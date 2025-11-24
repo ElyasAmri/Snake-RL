@@ -446,7 +446,8 @@ class TwoSnakePPOTrainer:
 
                 obs1 = next_obs1
                 obs2 = next_obs2
-                self.total_steps += 1
+                # FIX: Count all parallel environment steps, not just iterations
+                self.total_steps += self.config.num_envs
 
                 if self.total_steps >= self.config.total_steps:
                     break

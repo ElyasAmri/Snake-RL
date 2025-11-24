@@ -270,8 +270,9 @@ class CNNCurriculumTrainer(BaseCurriculumTrainer):
                         self.scores1.append(info['food_counts1'][i])
                         self.scores2.append(info['food_counts2'][i])
 
-                self.stage_steps += 1
-                self.total_steps += 1
+                # FIX: Count all parallel environment steps, not just iterations
+                self.stage_steps += self.config.num_envs
+                self.total_steps += self.config.num_envs
 
                 if self.should_advance_stage(stage):
                     break

@@ -417,7 +417,8 @@ class DQNTrainer:
 
             # Update state
             states = next_states
-            self.total_steps += 1
+            # FIX: Count all parallel environment steps, not just iterations
+            self.total_steps += self.num_envs
 
         print("Training complete!")
         print(f"Training finished after {self.episode} episodes")

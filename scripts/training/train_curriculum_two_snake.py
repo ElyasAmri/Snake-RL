@@ -520,11 +520,12 @@ class CurriculumTrainer:
             obs2 = next_obs2
 
             # Increment counters
-            self.stage_steps += 1
-            self.total_steps += 1
-            self.agent1.total_steps += 1
+            # FIX: Count all parallel environment steps, not just iterations
+            self.stage_steps += self.num_envs
+            self.total_steps += self.num_envs
+            self.agent1.total_steps += self.num_envs
             if stage.agent2_trains:
-                self.agent2.total_steps += 1
+                self.agent2.total_steps += self.num_envs
 
             # Logging
             if self.total_steps % self.log_interval == 0:

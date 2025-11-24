@@ -198,7 +198,8 @@ class CNNTrainer(BaseTrainer):
                         self.scores1.append(info['food_counts1'][i])
                         self.scores2.append(info['food_counts2'][i])
 
-                self.total_steps += 1
+                # FIX: Count all parallel environment steps, not just iterations
+                self.total_steps += self.config.num_envs
                 if self.total_steps >= self.config.total_steps:
                     break
 
