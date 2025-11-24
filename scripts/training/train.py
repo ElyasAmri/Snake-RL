@@ -180,7 +180,8 @@ def build_config(args) -> Dict[str, Any]:
         'num_episodes': args.episodes,
         'max_steps': args.max_steps,
         'seed': args.seed,
-        'hidden_dims': tuple(args.hidden_dims)
+        'hidden_dims': tuple(args.hidden_dims),
+        'max_time': args.max_time  # Maximum training time in seconds
     }
 
     # Add feature configuration
@@ -404,6 +405,8 @@ def create_parser():
                        help='Episodes between logging')
     parser.add_argument('--save-dir', type=str, default='results/weights',
                        help='Directory to save weights')
+    parser.add_argument('--max-time', type=int, default=None,
+                       help='Maximum training time in seconds')
 
     # Network arguments
     parser.add_argument('--hidden-dims', type=int, nargs='+', default=[128, 128],

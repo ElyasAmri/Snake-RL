@@ -70,6 +70,7 @@ class PPOConfig:
     # Other
     seed: int = 42
     save_dir: str = 'results/weights/ppo_two_snake_mlp'
+    max_time: Optional[int] = None  # Maximum training time in seconds
 
 
 class PPOBuffer:
@@ -452,7 +453,14 @@ class TwoSnakePPOTrainer:
                 if self.total_steps >= self.config.total_steps:
                     break
 
+                # Early exit if max_time reached
+                if self.config.max_time and (time.time() - start_time) >= self.config.max_time:
+                    print(f"\n[TIMEOUT] Max time {self.config.max_time}s reached. Stopping training...", flush=True)
+                    break
+
             if self.total_steps >= self.config.total_steps:
+                break
+            if self.config.max_time and (time.time() - start_time) >= self.config.max_time:
                 break
 
             # Compute next values for bootstrapping
@@ -594,6 +602,7 @@ def main():
     parser.add_argument('--critic-lr', type=float, default=0.0003, help='Critic learning rate')
     parser.add_argument('--save-dir', type=str, default='results/weights/ppo_two_snake_mlp', help='Save directory')
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
+    parser.add_argument('--max-time', type=int, default=None, help='Maximum training time in seconds')
 
     args = parser.parse_args()
 
@@ -604,7 +613,8 @@ def main():
         actor_lr=args.actor_lr,
         critic_lr=args.critic_lr,
         save_dir=args.save_dir,
-        seed=args.seed
+        seed=args.seed,
+        max_time=args.max_time
     )
 
     trainer = TwoSnakePPOTrainer(config)

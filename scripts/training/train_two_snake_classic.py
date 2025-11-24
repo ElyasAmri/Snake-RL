@@ -48,6 +48,7 @@ class DQNTwoSnakeTrainer:
         eval_freq: int = 100,
         save_freq: int = 2500,
         output_dir: str = "results/weights/competitive/classic",
+        max_time: int = None,  # Maximum training time in seconds
     ):
         """
         Initialize DQN trainer.
@@ -59,12 +60,14 @@ class DQNTwoSnakeTrainer:
             eval_freq: Frequency of evaluation logging
             save_freq: Frequency of checkpoint saving
             output_dir: Directory to save checkpoints
+            max_time: Maximum training time in seconds
         """
         self.grid_size = grid_size
         self.target_score = target_score
         self.max_episodes = max_episodes
         self.eval_freq = eval_freq
         self.save_freq = save_freq
+        self.max_time = max_time
 
         # Create directories
         self.output_dir = Path(output_dir)
@@ -246,6 +249,11 @@ class DQNTwoSnakeTrainer:
                 print(f"  >> Saved checkpoints at episode {episode}", flush=True)
                 print(flush=True)
 
+            # Early exit if max_time reached
+            if self.max_time and (time.time() - self.start_time) >= self.max_time:
+                print(f"\n[TIMEOUT] Max time {self.max_time}s reached. Stopping training...", flush=True)
+                break
+
         # Save final models
         self.agent1.save(str(self.output_dir / f"agent1_dqn_final.pt"))
         self.agent2.save(str(self.output_dir / f"agent2_dqn_final.pt"))
@@ -269,6 +277,7 @@ def main():
     parser.add_argument('--episodes', type=int, default=10000, help='Number of training episodes')
     parser.add_argument('--eval-freq', type=int, default=100, help='Evaluation frequency')
     parser.add_argument('--save-freq', type=int, default=2500, help='Checkpoint save frequency')
+    parser.add_argument('--max-time', type=int, default=None, help='Maximum training time in seconds')
 
     args = parser.parse_args()
 
@@ -277,7 +286,8 @@ def main():
         target_score=args.target_score,
         max_episodes=args.episodes,
         eval_freq=args.eval_freq,
-        save_freq=args.save_freq
+        save_freq=args.save_freq,
+        max_time=args.max_time
     )
 
     trainer.train()

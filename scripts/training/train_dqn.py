@@ -79,9 +79,11 @@ class DQNTrainer:
         # Other
         seed: int = 42,
         device: Optional[torch.device] = None,
-        save_dir: str = 'results/weights'
+        save_dir: str = 'results/weights',
+        max_time: Optional[int] = None  # Maximum training time in seconds
     ):
         """Initialize DQN trainer"""
+        self.max_time = max_time
 
         # Set seed
         set_seed(seed)
@@ -415,10 +417,19 @@ class DQNTrainer:
                     if self.episode >= self.num_episodes:
                         break
 
+                    # Early exit if max_time reached
+                    if self.max_time and (time.time() - start_time) >= self.max_time:
+                        print(f"\n[TIMEOUT] Max time {self.max_time}s reached. Stopping training...", flush=True)
+                        break
+
             # Update state
             states = next_states
             # FIX: Count all parallel environment steps, not just iterations
             self.total_steps += self.num_envs
+
+            # Check max_time at outer loop level
+            if self.max_time and (time.time() - start_time) >= self.max_time:
+                break
 
         print("Training complete!")
         print(f"Training finished after {self.episode} episodes")

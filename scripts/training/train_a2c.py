@@ -53,9 +53,11 @@ class A2CTrainer:
         # Other
         seed: int = 42,
         device: Optional[torch.device] = None,
-        save_dir: str = 'results/weights'
+        save_dir: str = 'results/weights',
+        max_time: Optional[int] = None  # Maximum training time in seconds
     ):
         """Initialize A2C trainer"""
+        self.max_time = max_time
 
         # Set seed
         set_seed(seed)
@@ -198,6 +200,7 @@ class A2CTrainer:
         episode_rewards = torch.zeros(self.num_envs, device=self.device)
         episode_lengths = torch.zeros(self.num_envs, device=self.device)
         completed_episodes = 0
+        start_time = time.time()
 
         while completed_episodes < self.num_episodes:
             # Collect rollout
@@ -240,12 +243,21 @@ class A2CTrainer:
                         if completed_episodes >= self.num_episodes:
                             break
 
+                        # Early exit if max_time reached
+                        if self.max_time and (time.time() - start_time) >= self.max_time:
+                            print(f"\n[TIMEOUT] Max time {self.max_time}s reached. Stopping training...", flush=True)
+                            break
+
                 states = next_states
 
                 if completed_episodes >= self.num_episodes:
                     break
+                if self.max_time and (time.time() - start_time) >= self.max_time:
+                    break
 
             if completed_episodes >= self.num_episodes:
+                break
+            if self.max_time and (time.time() - start_time) >= self.max_time:
                 break
 
             # Compute returns

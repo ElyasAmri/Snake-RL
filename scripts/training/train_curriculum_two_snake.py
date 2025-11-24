@@ -203,9 +203,11 @@ class CurriculumTrainer:
         log_interval: int = 100,
         save_dir: str = 'results/weights/competitive',
         device: Optional[torch.device] = None,
-        seed: int = 42
+        seed: int = 42,
+        max_time: Optional[int] = None  # Maximum training time in seconds
     ):
         """Initialize curriculum trainer"""
+        self.max_time = max_time
         set_seed(seed)
         self.device = device if device else get_device()
 
@@ -544,6 +546,11 @@ class CurriculumTrainer:
 
                 self.log_progress(stage)
 
+            # Check max_time within stage
+            if self.max_time and hasattr(self, 'training_start_time') and (time.time() - self.training_start_time) >= self.max_time:
+                print(f"\n[TIMEOUT] Max time {self.max_time}s reached. Stopping training...", flush=True)
+                break
+
         # Save checkpoint at end of stage
         self.save_checkpoint(stage.name)
         print(f"\n[OK] Stage {stage.stage_id} complete!", flush=True)
@@ -615,6 +622,7 @@ class CurriculumTrainer:
         print("="*70, flush=True)
 
         start_time = time.time()
+        self.training_start_time = start_time  # Store for use in train_stage
 
         # Train each stage
         for stage_idx, stage in enumerate(self.stages):
@@ -623,6 +631,11 @@ class CurriculumTrainer:
 
             # For final stage, train for min_steps then stop
             if stage.win_rate_threshold is None:
+                break
+
+            # Check max_time between stages
+            if self.max_time and (time.time() - start_time) >= self.max_time:
+                print(f"\n[TIMEOUT] Max time {self.max_time}s reached. Stopping training...", flush=True)
                 break
 
         total_time = time.time() - start_time
@@ -651,6 +664,7 @@ def main():
     parser.add_argument('--save-dir', type=str, default='results/weights/competitive', help='Save directory')
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
     parser.add_argument('--log-interval', type=int, default=100, help='Logging interval')
+    parser.add_argument('--max-time', type=int, default=None, help='Maximum training time in seconds')
 
     args = parser.parse_args()
 
@@ -664,7 +678,8 @@ def main():
         train_steps_ratio=args.train_steps_ratio,
         log_interval=args.log_interval,
         save_dir=args.save_dir,
-        seed=args.seed
+        seed=args.seed,
+        max_time=args.max_time
     )
 
     # Run training

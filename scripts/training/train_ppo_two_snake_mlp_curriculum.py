@@ -249,7 +249,14 @@ class CurriculumPPOTrainer(TwoSnakePPOTrainer):
                 if self.should_advance_stage(stage):
                     break
 
+                # Check max_time within stage
+                if self.config.max_time and hasattr(self, 'training_start_time') and (time.time() - self.training_start_time) >= self.config.max_time:
+                    print(f"\n[TIMEOUT] Max time {self.config.max_time}s reached. Stopping training...", flush=True)
+                    break
+
             if self.should_advance_stage(stage):
+                break
+            if self.config.max_time and hasattr(self, 'training_start_time') and (time.time() - self.training_start_time) >= self.config.max_time:
                 break
 
             # Update agent1 (always trains)
@@ -383,6 +390,7 @@ class CurriculumPPOTrainer(TwoSnakePPOTrainer):
         print("="*70, flush=True)
 
         total_start = time.time()
+        self.training_start_time = total_start  # Store for use in train_curriculum_stage
 
         # Train each curriculum stage
         for stage_idx, stage in enumerate(self.stages):
@@ -391,6 +399,11 @@ class CurriculumPPOTrainer(TwoSnakePPOTrainer):
 
             # Final stage has no threshold - runs for min_steps
             if stage.win_rate_threshold is None:
+                break
+
+            # Check max_time between stages
+            if self.config.max_time and (time.time() - total_start) >= self.config.max_time:
+                print(f"\n[TIMEOUT] Max time {self.config.max_time}s reached. Stopping training...", flush=True)
                 break
 
         total_time = time.time() - total_start
@@ -436,6 +449,8 @@ def main():
                         help='Directory to save checkpoints')
     parser.add_argument('--seed', type=int, default=42,
                         help='Random seed')
+    parser.add_argument('--max-time', type=int, default=None,
+                        help='Maximum training time in seconds')
 
     args = parser.parse_args()
 
@@ -446,7 +461,8 @@ def main():
         actor_lr=args.actor_lr,
         critic_lr=args.critic_lr,
         save_dir=args.save_dir,
-        seed=args.seed
+        seed=args.seed,
+        max_time=args.max_time
     )
 
     # Create and run trainer

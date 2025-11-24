@@ -99,9 +99,11 @@ class REINFORCETrainer:
         # Other
         seed: int = 42,
         device: Optional[torch.device] = None,
-        save_dir: str = 'results/weights'
+        save_dir: str = 'results/weights',
+        max_time: Optional[int] = None  # Maximum training time in seconds
     ):
         """Initialize REINFORCE trainer"""
+        self.max_time = max_time
 
         # Set seed
         set_seed(seed)
@@ -313,9 +315,16 @@ class REINFORCETrainer:
                         if self.episode >= self.num_episodes:
                             break
 
+                        # Early exit if max_time reached
+                        if self.max_time and (time.time() - start_time) >= self.max_time:
+                            print(f"\n[TIMEOUT] Max time {self.max_time}s reached. Stopping training...", flush=True)
+                            break
+
                 states = next_states
 
                 if self.episode >= self.num_episodes:
+                    break
+                if self.max_time and (time.time() - start_time) >= self.max_time:
                     break
 
             # Update policy after collecting episodes
