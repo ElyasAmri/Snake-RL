@@ -36,14 +36,14 @@ class VectorizedTwoSnakeEnv:
     def __init__(
         self,
         num_envs: int = 128,
-        grid_size: int = 10,
+        grid_size: int = 20,  # Increased from 10 to give more space for learning
         max_steps: int = 1000,
         target_food: int = 10,
         reward_food: float = 10.0,
-        reward_opponent_food: float = -5.0,
+        reward_opponent_food: float = 0.0,  # Changed from -5.0 (focus on own performance)
         reward_death: float = -50.0,
         reward_win: float = 100.0,
-        reward_step: float = 0.01,
+        reward_step: float = 0.0,  # Changed from 0.01 to 0.0 (focus on food)
         reward_stalemate: float = -10.0,
         device: torch.device = None
     ):
@@ -95,16 +95,27 @@ class VectorizedTwoSnakeEnv:
         self._init_state_tensors()
 
         # Initialize competitive feature encoder
+        # Note: use_flood_fill=False for speed (avoids CPU bottleneck)
         self.feature_encoder = CompetitiveFeatureEncoder(
             grid_size=grid_size,
             max_length=grid_size * grid_size,
             target_food=target_food,
-            device=self.device
+            device=self.device,
+            use_flood_fill=False
         )
+
+        # Initialize game state by resetting all environments
+        self.reset()
+
+    def set_target_food(self, target_food: int):
+        """Dynamically change target food for curriculum learning"""
+        self.target_food = target_food
+        self.feature_encoder.target_food = target_food
 
     def _init_state_tensors(self):
         """Initialize all state tensors on GPU"""
-        max_length = self.grid_size * self.grid_size
+        self.max_length = self.grid_size * self.grid_size
+        max_length = self.max_length
 
         # Snake 1 (Big network - 256x256)
         self.snakes1 = torch.zeros(
@@ -150,22 +161,20 @@ class VectorizedTwoSnakeEnv:
             torch.manual_seed(seed)
             np.random.seed(seed)
 
-        # Reset all environments
+        # VECTORIZED: Reset all environments at once
         center = self.grid_size // 2
 
-        # Initialize snake 1 (left side, heading right)
-        for i in range(self.num_envs):
-            start_x = center - 3
-            self.snakes1[i, 0] = torch.tensor([start_x, center], device=self.device)
-            self.snakes1[i, 1] = torch.tensor([start_x - 1, center], device=self.device)
-            self.snakes1[i, 2] = torch.tensor([start_x - 2, center], device=self.device)
+        # Initialize snake 1 (left side, heading right) - ALL environments at once
+        start_x1 = center - 3
+        self.snakes1[:, 0] = torch.tensor([start_x1, center], device=self.device)
+        self.snakes1[:, 1] = torch.tensor([start_x1 - 1, center], device=self.device)
+        self.snakes1[:, 2] = torch.tensor([start_x1 - 2, center], device=self.device)
 
-        # Initialize snake 2 (right side, heading left)
-        for i in range(self.num_envs):
-            start_x = center + 3
-            self.snakes2[i, 0] = torch.tensor([start_x, center], device=self.device)
-            self.snakes2[i, 1] = torch.tensor([start_x + 1, center], device=self.device)
-            self.snakes2[i, 2] = torch.tensor([start_x + 2, center], device=self.device)
+        # Initialize snake 2 (right side, heading left) - ALL environments at once
+        start_x2 = center + 3
+        self.snakes2[:, 0] = torch.tensor([start_x2, center], device=self.device)
+        self.snakes2[:, 1] = torch.tensor([start_x2 + 1, center], device=self.device)
+        self.snakes2[:, 2] = torch.tensor([start_x2 + 2, center], device=self.device)
 
         self.lengths1[:] = 3
         self.lengths2[:] = 3
@@ -187,12 +196,20 @@ class VectorizedTwoSnakeEnv:
         return self._get_observations()
 
     def _spawn_food_all(self):
-        """Spawn food in all environments at random empty cells"""
-        for env_idx in range(self.num_envs):
-            self._spawn_food_single(env_idx)
+        """VECTORIZED: Spawn food in all environments at random empty cells"""
+        # Generate random positions for all environments
+        candidate_foods = torch.randint(
+            0, self.grid_size,
+            (self.num_envs, 2),
+            device=self.device
+        )
+
+        # For simplicity, accept the random position (collision probability is low early in game)
+        # A fully vectorized collision check would be too complex for marginal benefit
+        self.foods = candidate_foods
 
     def _spawn_food_single(self, env_idx: int):
-        """Spawn food in a single environment"""
+        """Spawn food in a single environment (used for per-env respawning)"""
         # Get occupied cells
         snake1 = self.snakes1[env_idx, :self.lengths1[env_idx]]
         snake2 = self.snakes2[env_idx, :self.lengths2[env_idx]]
@@ -369,17 +386,19 @@ class VectorizedTwoSnakeEnv:
         direction_vecs = self.DIRECTION_VECTORS[directions]  # (num_envs, 2)
         new_heads = heads + direction_vecs
 
-        # Shift snake bodies (only for alive snakes)
-        for env_idx in range(self.num_envs):
-            if alive[env_idx]:
-                length = lengths[env_idx]
-                # Shift body segments back
-                snakes[env_idx, 1:length] = snakes[env_idx, 0:length-1].clone()
-                # Place new head
-                snakes[env_idx, 0] = new_heads[env_idx]
+        # VECTORIZED: Shift snake bodies (all environments at once)
+        # Shift all body segments back by 1 position
+        snakes[:, 1:] = snakes[:, :-1].clone()
+        # Place new heads
+        snakes[:, 0] = new_heads
+
+        # Mask invalid segments for dead snakes and segments beyond length
+        segment_idx = torch.arange(self.max_length, device=self.device).unsqueeze(0)  # (1, max_length)
+        valid_mask = (segment_idx < lengths.unsqueeze(1)) & alive.unsqueeze(1)  # (num_envs, max_length)
+        snakes[~valid_mask] = -1  # Mark invalid positions
 
     def _check_collisions(self, snake_id: int) -> torch.Tensor:
-        """Check collisions for snake (wall, self, opponent)"""
+        """VECTORIZED: Check collisions for snake (wall, self, opponent)"""
         if snake_id == 1:
             snakes = self.snakes1
             lengths = self.lengths1
@@ -393,35 +412,49 @@ class VectorizedTwoSnakeEnv:
             opponent_snakes = self.snakes1
             opponent_lengths = self.lengths1
 
-        collision = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        # Get all heads at once (num_envs, 2)
+        heads = snakes[:, 0, :]
 
-        for env_idx in range(self.num_envs):
-            if not alive[env_idx]:
-                continue
+        # Wall collisions - pure tensor operations
+        wall_collision = (
+            (heads[:, 0] < 0) |
+            (heads[:, 0] >= self.grid_size) |
+            (heads[:, 1] < 0) |
+            (heads[:, 1] >= self.grid_size)
+        )
 
-            head = snakes[env_idx, 0]
+        # Self collisions - broadcast comparison
+        # heads: (num_envs, 2) -> (num_envs, 1, 2)
+        # body: (num_envs, max_length-1, 2)
+        heads_expanded = heads.unsqueeze(1)
+        body = snakes[:, 1:, :]
 
-            # Wall collision
-            if head[0] < 0 or head[0] >= self.grid_size or head[1] < 0 or head[1] >= self.grid_size:
-                collision[env_idx] = True
-                continue
+        # Check which segments match the head
+        matches = (heads_expanded == body).all(dim=-1)  # (num_envs, max_length-1)
 
-            # Self collision (check body segments 1 onwards)
-            body = snakes[env_idx, 1:lengths[env_idx]]
-            if (body == head).all(dim=1).any():
-                collision[env_idx] = True
-                continue
+        # Mask by valid segments (segments 1 onwards that are within length)
+        segment_idx = torch.arange(1, self.max_length, device=self.device).unsqueeze(0)  # (1, max_length-1)
+        valid_segments = segment_idx < lengths.unsqueeze(1)  # (num_envs, max_length-1)
 
-            # Opponent collision (check all opponent segments)
-            opponent_body = opponent_snakes[env_idx, :opponent_lengths[env_idx]]
-            if (opponent_body == head).all(dim=1).any():
-                collision[env_idx] = True
-                continue
+        self_collision = (matches & valid_segments).any(dim=1)
+
+        # Opponent collisions - broadcast comparison
+        # Check head against all opponent segments
+        opponent_matches = (heads_expanded == opponent_snakes).all(dim=-1)  # (num_envs, max_length)
+
+        # Mask by valid opponent segments
+        opponent_segment_idx = torch.arange(self.max_length, device=self.device).unsqueeze(0)
+        valid_opponent = opponent_segment_idx < opponent_lengths.unsqueeze(1)
+
+        opponent_collision = (opponent_matches & valid_opponent).any(dim=1)
+
+        # Combine all collision types, but only for alive snakes
+        collision = (wall_collision | self_collision | opponent_collision) & alive
 
         return collision
 
     def _check_food_collection(self, snake_id: int) -> torch.Tensor:
-        """Check if snake collected food"""
+        """VECTORIZED: Check if snake collected food"""
         if snake_id == 1:
             snakes = self.snakes1
             lengths = self.lengths1
@@ -435,25 +468,22 @@ class VectorizedTwoSnakeEnv:
             food_counts = self.food_counts2
             steps_since_food = self.steps_since_food2
 
-        collected = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        # Get all heads at once (num_envs, 2)
+        heads = snakes[:, 0, :]
 
-        for env_idx in range(self.num_envs):
-            if not alive[env_idx]:
-                continue
+        # Check food collection (vectorized)
+        collected = (heads == self.foods).all(dim=1) & alive  # (num_envs,)
 
-            head = snakes[env_idx, 0]
-            food = self.foods[env_idx]
+        # Update lengths, food counts, and steps_since_food where food was collected
+        lengths[collected] += 1
+        food_counts[collected] += 1
+        steps_since_food[collected] = 0
 
-            if (head == food).all():
-                collected[env_idx] = True
-                # Grow snake
-                lengths[env_idx] += 1
-                # Increment food counter
-                food_counts[env_idx] += 1
-                # Reset steps since food
-                steps_since_food[env_idx] = 0
-                # Respawn food
-                self._spawn_food_single(env_idx)
+        # Respawn food for envs that collected (will be vectorized in Phase 1.4)
+        if collected.any():
+            env_indices = collected.nonzero(as_tuple=True)[0]
+            for env_idx in env_indices:
+                self._spawn_food_single(env_idx.item())
 
         return collected
 

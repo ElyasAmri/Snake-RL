@@ -8,6 +8,7 @@ Provides 35-dimensional feature vector for competitive Snake gameplay:
 """
 
 import torch
+import time
 from typing import Tuple
 
 
@@ -49,7 +50,8 @@ class CompetitiveFeatureEncoder:
         grid_size: int,
         max_length: int,
         target_food: int,
-        device: torch.device = None
+        device: torch.device = None,
+        use_flood_fill: bool = False
     ):
         """
         Initialize competitive feature encoder.
@@ -59,11 +61,13 @@ class CompetitiveFeatureEncoder:
             max_length: Maximum snake length
             target_food: Target food count to win
             device: PyTorch device (CPU or CUDA)
+            use_flood_fill: Enable CPU-intensive flood-fill features (default: False for speed)
         """
         self.grid_size = grid_size
         self.max_length = max_length
         self.target_food = target_food
         self.device = device if device is not None else torch.device('cpu')
+        self.use_flood_fill = use_flood_fill
 
         # Precompute grid diagonal for normalization
         self.grid_diagonal = (grid_size ** 2 + grid_size ** 2) ** 0.5
@@ -111,6 +115,14 @@ class CompetitiveFeatureEncoder:
         batch_size = snake_self.shape[0]
         features = torch.zeros((batch_size, 35), dtype=torch.float32, device=self.device)
 
+        # Profiling: Track feature computation timing (accumulate totals)
+        if not hasattr(self, '_encoding_call_count'):
+            self._encoding_call_count = 0
+            self._total_danger_self_time = 0.0
+            self._total_danger_opp_time = 0.0
+            self._total_food_dir_time = 0.0
+        self._encoding_call_count += 1
+
         # Extract heads
         head_self = snake_self[:, 0, :]  # (batch, 2)
         head_opponent = snake_opponent[:, 0, :]  # (batch, 2)
@@ -118,28 +130,38 @@ class CompetitiveFeatureEncoder:
         # ========== SELF-AWARENESS (14 dims) ==========
 
         # [0-3]: Danger from walls/self in 4 directions
+        t0 = time.perf_counter()
         features[:, 0:4] = self._compute_danger_self(
             head_self, snake_self, length_self, direction_self
         )
+        self._total_danger_self_time += time.perf_counter() - t0
 
         # [4-7]: Food direction (up, right, down, left)
+        t0 = time.perf_counter()
         features[:, 4:8] = self._compute_food_direction(head_self, food)
+        self._total_food_dir_time += time.perf_counter() - t0
 
         # [8-10]: Current direction one-hot
         features[:, 8:11] = self._encode_direction(direction_self)
 
         # [11-13]: Flood-fill free space (straight, right, left)
-        features[:, 11:14] = self._compute_flood_fill_features(
-            head_self, snake_self, length_self, direction_self,
-            snake_opponent, length_opponent
-        )
+        if self.use_flood_fill:
+            features[:, 11:14] = self._compute_flood_fill_features(
+                head_self, snake_self, length_self, direction_self,
+                snake_opponent, length_opponent
+            )
+        else:
+            # Use simple heuristic: free space = 1.0 - danger
+            features[:, 11:14] = 1.0 - features[:, 0:3]
 
         # ========== OPPONENT-AWARENESS (15 dims) ==========
 
         # [14-17]: Danger from opponent body in 4 directions
+        t0 = time.perf_counter()
         features[:, 14:18] = self._compute_danger_opponent(
             head_self, direction_self, snake_opponent, length_opponent
         )
+        self._total_danger_opp_time += time.perf_counter() - t0
 
         # [18-21]: Opponent head position relative (up, right, down, left)
         features[:, 18:22] = self._compute_relative_position(head_self, head_opponent)
@@ -161,10 +183,15 @@ class CompetitiveFeatureEncoder:
         )
 
         # [28]: Can reach opponent head via flood-fill
-        features[:, 28] = self._compute_reachability(
-            head_self, head_opponent, snake_self, length_self,
-            snake_opponent, length_opponent
-        )
+        if self.use_flood_fill:
+            features[:, 28] = self._compute_reachability(
+                head_self, head_opponent, snake_self, length_self,
+                snake_opponent, length_opponent
+            )
+        else:
+            # Use simple heuristic: reachable if distance < grid_size / 2
+            dist = self._compute_manhattan_distance(head_self, head_opponent)
+            features[:, 28] = (dist < self.grid_size / 2).float()
 
         # ========== COMPETITIVE METRICS (6 dims) ==========
 
@@ -180,13 +207,17 @@ class CompetitiveFeatureEncoder:
         features[:, 31] = (dist_opponent_food - dist_self_food) / self.grid_diagonal
 
         # [32]: Space control (flood-fill difference)
-        flood_self = self._compute_flood_fill_total(
-            head_self, snake_self, length_self, snake_opponent, length_opponent
-        )
-        flood_opponent = self._compute_flood_fill_total(
-            head_opponent, snake_opponent, length_opponent, snake_self, length_self
-        )
-        features[:, 32] = (flood_self - flood_opponent) / self.total_cells
+        if self.use_flood_fill:
+            flood_self = self._compute_flood_fill_total(
+                head_self, snake_self, length_self, snake_opponent, length_opponent
+            )
+            flood_opponent = self._compute_flood_fill_total(
+                head_opponent, snake_opponent, length_opponent, snake_self, length_self
+            )
+            features[:, 32] = (flood_self - flood_opponent) / self.total_cells
+        else:
+            # Use length difference as proxy for space control
+            features[:, 32] = (length_self.float() - length_opponent.float()) / self.max_length
 
         # [33]: Steps since last food normalized
         features[:, 33] = torch.clamp(steps_since_food_self.float() / 100.0, 0.0, 1.0)
@@ -195,6 +226,19 @@ class CompetitiveFeatureEncoder:
         features[:, 34] = food_count_self.float() / self.target_food
 
         return features
+
+    def get_profiling_stats(self):
+        """Get accumulated profiling statistics"""
+        if not hasattr(self, '_encoding_call_count') or self._encoding_call_count == 0:
+            return None
+
+        return {
+            'total_encodings': self._encoding_call_count,
+            'avg_danger_self_ms': (self._total_danger_self_time / self._encoding_call_count) * 1000,
+            'avg_danger_opp_ms': (self._total_danger_opp_time / self._encoding_call_count) * 1000,
+            'avg_food_dir_ms': (self._total_food_dir_time / self._encoding_call_count) * 1000,
+            'total_time_s': self._total_danger_self_time + self._total_danger_opp_time + self._total_food_dir_time
+        }
 
     def _compute_danger_self(
         self,
@@ -206,36 +250,50 @@ class CompetitiveFeatureEncoder:
         """
         Compute danger from walls and self in 4 directions (straight, left, right, back).
 
+        VECTORIZED VERSION - No Python loops, pure tensor operations.
+
         Returns: (batch, 4) tensor of binary danger flags
         """
         batch_size = head.shape[0]
-        dangers = torch.zeros((batch_size, 4), dtype=torch.float32, device=self.device)
 
-        # Check each relative direction: straight=0, left=-1, right=+1, back=+2
-        for i, offset in enumerate([0, -1, 1, 2]):
-            check_dir = (direction + offset) % 4  # (batch,)
+        # Compute next positions for all 4 relative directions at once
+        # relative_offsets: [straight=0, left=-1, right=+1, back=+2]
+        relative_offsets = torch.tensor([0, -1, 1, 2], device=self.device)  # (4,)
+        check_dirs = (direction.unsqueeze(1) + relative_offsets.unsqueeze(0)) % 4  # (batch, 4)
 
-            # Get delta for each direction
-            for b in range(batch_size):
-                dir_idx = check_dir[b].item()
-                dx, dy = self.direction_deltas[dir_idx]
-                next_pos = head[b] + torch.tensor([dx, dy], device=self.device)
+        # Get deltas for all directions: (batch, 4, 2)
+        deltas = self.direction_deltas[check_dirs]  # (batch, 4, 2)
 
-                # Check wall collision
-                is_wall = (
-                    next_pos[0] < 0 or next_pos[0] >= self.grid_size or
-                    next_pos[1] < 0 or next_pos[1] >= self.grid_size
-                )
+        # Compute next positions: (batch, 4, 2)
+        next_positions = head.unsqueeze(1) + deltas  # (batch, 1, 2) + (batch, 4, 2) = (batch, 4, 2)
 
-                # Check self collision
-                is_self_collision = False
-                if not is_wall:
-                    for j in range(length[b]):
-                        if torch.equal(next_pos, snake[b, j]):
-                            is_self_collision = True
-                            break
+        # Check wall collisions (vectorized): (batch, 4)
+        x_coords = next_positions[:, :, 0]  # (batch, 4)
+        y_coords = next_positions[:, :, 1]  # (batch, 4)
+        is_wall = (
+            (x_coords < 0) | (x_coords >= self.grid_size) |
+            (y_coords < 0) | (y_coords >= self.grid_size)
+        ).float()  # (batch, 4)
 
-                dangers[b, i] = float(is_wall or is_self_collision)
+        # Check self collisions (vectorized)
+        # Compare next_positions (batch, 4, 2) with snake body (batch, max_length, 2)
+        # Expand dimensions: next_pos (batch, 4, 1, 2) vs snake (batch, 1, max_length, 2)
+        next_pos_expanded = next_positions.unsqueeze(2)  # (batch, 4, 1, 2)
+        snake_expanded = snake.unsqueeze(1)  # (batch, 1, max_length, 2)
+
+        # Check if next_pos matches any snake segment: (batch, 4, max_length)
+        matches = ((next_pos_expanded == snake_expanded).all(dim=-1))  # (batch, 4, max_length)
+
+        # Create mask for valid snake segments based on length
+        segment_indices = torch.arange(snake.shape[1], device=self.device)  # (max_length,)
+        valid_segments = segment_indices.unsqueeze(0) < length.unsqueeze(1)  # (batch, max_length)
+        valid_segments = valid_segments.unsqueeze(1)  # (batch, 1, max_length)
+
+        # Check if any valid segment matches: (batch, 4)
+        is_self_collision = (matches & valid_segments).any(dim=2).float()  # (batch, 4)
+
+        # Combine: danger if wall OR self-collision
+        dangers = torch.maximum(is_wall, is_self_collision)  # (batch, 4)
 
         return dangers
 
@@ -377,24 +435,39 @@ class CompetitiveFeatureEncoder:
         """
         Compute danger from opponent body in 4 directions (straight, left, right, back).
 
+        VECTORIZED VERSION - No Python loops, pure tensor operations.
+
         Returns: (batch, 4) tensor
         """
         batch_size = head.shape[0]
-        dangers = torch.zeros((batch_size, 4), dtype=torch.float32, device=self.device)
 
-        for i, offset in enumerate([0, -1, 1, 2]):
-            check_dir = (direction + offset) % 4
+        # Compute next positions for all 4 relative directions at once
+        # relative_offsets: [straight=0, left=-1, right=+1, back=+2]
+        relative_offsets = torch.tensor([0, -1, 1, 2], device=self.device)  # (4,)
+        check_dirs = (direction.unsqueeze(1) + relative_offsets.unsqueeze(0)) % 4  # (batch, 4)
 
-            for b in range(batch_size):
-                dir_idx = check_dir[b].item()
-                dx, dy = self.direction_deltas[dir_idx]
-                next_pos = head[b] + torch.tensor([dx, dy], device=self.device)
+        # Get deltas for all directions: (batch, 4, 2)
+        deltas = self.direction_deltas[check_dirs]  # (batch, 4, 2)
 
-                # Check collision with opponent body
-                for j in range(length_opponent[b]):
-                    if torch.equal(next_pos, snake_opponent[b, j]):
-                        dangers[b, i] = 1.0
-                        break
+        # Compute next positions: (batch, 4, 2)
+        next_positions = head.unsqueeze(1) + deltas  # (batch, 1, 2) + (batch, 4, 2) = (batch, 4, 2)
+
+        # Check collisions with opponent body (vectorized)
+        # Compare next_positions (batch, 4, 2) with opponent snake (batch, max_length, 2)
+        # Expand dimensions: next_pos (batch, 4, 1, 2) vs snake_opp (batch, 1, max_length, 2)
+        next_pos_expanded = next_positions.unsqueeze(2)  # (batch, 4, 1, 2)
+        snake_expanded = snake_opponent.unsqueeze(1)  # (batch, 1, max_length, 2)
+
+        # Check if next_pos matches any opponent segment: (batch, 4, max_length)
+        matches = ((next_pos_expanded == snake_expanded).all(dim=-1))  # (batch, 4, max_length)
+
+        # Create mask for valid opponent segments based on length
+        segment_indices = torch.arange(snake_opponent.shape[1], device=self.device)  # (max_length,)
+        valid_segments = segment_indices.unsqueeze(0) < length_opponent.unsqueeze(1)  # (batch, max_length)
+        valid_segments = valid_segments.unsqueeze(1)  # (batch, 1, max_length)
+
+        # Check if any valid segment matches: (batch, 4)
+        dangers = (matches & valid_segments).any(dim=2).float()  # (batch, 4)
 
         return dangers
 
@@ -545,3 +618,162 @@ class CompetitiveFeatureEncoder:
             total_space[b] = free_space
 
         return total_space
+
+
+class CompetitiveGridEncoder:
+    """
+    Encodes competitive two-snake game state as a multi-channel grid.
+
+    Grid-based CNN representation for competitive Snake gameplay.
+    Each snake sees the world from its own perspective (agent-centric).
+
+    Channels (5 total):
+        0: Self head position
+        1: Self body positions
+        2: Opponent head position
+        3: Opponent body positions
+        4: Food position
+
+    Output shape: (batch_size, grid_size, grid_size, 5)
+    """
+
+    def __init__(self, grid_size: int, device: torch.device = None):
+        """
+        Initialize competitive grid encoder.
+
+        Args:
+            grid_size: Size of the game grid
+            device: PyTorch device (CPU or CUDA)
+        """
+        self.grid_size = grid_size
+        self.device = device if device is not None else torch.device('cpu')
+
+        # Profiling
+        self._encoding_call_count = 0
+        self._total_encoding_time = 0.0
+
+    def encode_batch(
+        self,
+        snake_self: torch.Tensor,
+        length_self: torch.Tensor,
+        snake_opponent: torch.Tensor,
+        length_opponent: torch.Tensor,
+        food: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Encode batch of competitive game states as grids (VECTORIZED).
+
+        Args:
+            snake_self: (batch, max_length, 2) - self snake positions
+            length_self: (batch,) - self snake lengths
+            snake_opponent: (batch, max_length, 2) - opponent snake positions
+            length_opponent: (batch,) - opponent snake lengths
+            food: (batch, 2) - food positions
+
+        Returns:
+            (batch, grid_size, grid_size, 5) grid tensor
+        """
+        import time
+        t0 = time.perf_counter()
+
+        batch_size = snake_self.shape[0]
+        max_length = snake_self.shape[1]
+
+        grid = torch.zeros(
+            (batch_size, self.grid_size, self.grid_size, 5),
+            dtype=torch.float32,
+            device=self.device
+        )
+
+        # Channel 0: Self heads (all at once)
+        head_pos_self = snake_self[:, 0, :].long()  # (batch, 2)
+        valid_heads_self = (
+            (head_pos_self[:, 0] >= 0) &
+            (head_pos_self[:, 0] < self.grid_size) &
+            (head_pos_self[:, 1] >= 0) &
+            (head_pos_self[:, 1] < self.grid_size)
+        )
+        valid_batch_idx = torch.arange(batch_size, device=self.device)[valid_heads_self]
+        valid_x = head_pos_self[valid_heads_self, 0]
+        valid_y = head_pos_self[valid_heads_self, 1]
+        grid[valid_batch_idx, valid_y, valid_x, 0] = 1.0
+
+        # Channel 1: Self bodies (excluding head) - vectorized with masking
+        segment_indices = torch.arange(1, max_length, device=self.device).unsqueeze(0)  # (1, max_length-1)
+        body_mask_self = segment_indices < length_self.unsqueeze(1)  # (batch, max_length-1)
+
+        body_positions_self = snake_self[:, 1:, :].long()  # (batch, max_length-1, 2)
+        valid_body_self = (
+            body_mask_self &
+            (body_positions_self[..., 0] >= 0) &
+            (body_positions_self[..., 0] < self.grid_size) &
+            (body_positions_self[..., 1] >= 0) &
+            (body_positions_self[..., 1] < self.grid_size)
+        )
+
+        # Get flattened indices for valid body segments
+        batch_idx_body_self = torch.arange(batch_size, device=self.device).unsqueeze(1).expand(-1, max_length-1)[valid_body_self]
+        x_body_self = body_positions_self[..., 0][valid_body_self]
+        y_body_self = body_positions_self[..., 1][valid_body_self]
+        grid[batch_idx_body_self, y_body_self, x_body_self, 1] = 1.0
+
+        # Channel 2: Opponent heads (all at once)
+        head_pos_opp = snake_opponent[:, 0, :].long()  # (batch, 2)
+        valid_heads_opp = (
+            (head_pos_opp[:, 0] >= 0) &
+            (head_pos_opp[:, 0] < self.grid_size) &
+            (head_pos_opp[:, 1] >= 0) &
+            (head_pos_opp[:, 1] < self.grid_size)
+        )
+        valid_batch_idx_opp = torch.arange(batch_size, device=self.device)[valid_heads_opp]
+        valid_x_opp = head_pos_opp[valid_heads_opp, 0]
+        valid_y_opp = head_pos_opp[valid_heads_opp, 1]
+        grid[valid_batch_idx_opp, valid_y_opp, valid_x_opp, 2] = 1.0
+
+        # Channel 3: Opponent bodies (excluding head) - vectorized with masking
+        body_mask_opp = segment_indices < length_opponent.unsqueeze(1)  # (batch, max_length-1)
+
+        body_positions_opp = snake_opponent[:, 1:, :].long()  # (batch, max_length-1, 2)
+        valid_body_opp = (
+            body_mask_opp &
+            (body_positions_opp[..., 0] >= 0) &
+            (body_positions_opp[..., 0] < self.grid_size) &
+            (body_positions_opp[..., 1] >= 0) &
+            (body_positions_opp[..., 1] < self.grid_size)
+        )
+
+        # Get flattened indices for valid body segments
+        batch_idx_body_opp = torch.arange(batch_size, device=self.device).unsqueeze(1).expand(-1, max_length-1)[valid_body_opp]
+        x_body_opp = body_positions_opp[..., 0][valid_body_opp]
+        y_body_opp = body_positions_opp[..., 1][valid_body_opp]
+        grid[batch_idx_body_opp, y_body_opp, x_body_opp, 3] = 1.0
+
+        # Channel 4: Food (all at once)
+        food_pos = food.long()  # (batch, 2)
+        valid_food = (
+            (food_pos[:, 0] >= 0) &
+            (food_pos[:, 0] < self.grid_size) &
+            (food_pos[:, 1] >= 0) &
+            (food_pos[:, 1] < self.grid_size)
+        )
+        valid_batch_idx_food = torch.arange(batch_size, device=self.device)[valid_food]
+        valid_x_food = food_pos[valid_food, 0]
+        valid_y_food = food_pos[valid_food, 1]
+        grid[valid_batch_idx_food, valid_y_food, valid_x_food, 4] = 1.0
+
+        # Update profiling
+        self._encoding_call_count += 1
+        self._total_encoding_time += time.perf_counter() - t0
+
+        return grid
+
+    def get_profiling_stats(self):
+        """Get accumulated profiling statistics"""
+        if self._encoding_call_count == 0:
+            return None
+
+        return {
+            'total_encodings': self._encoding_call_count,
+            'avg_encoding_ms': (self._total_encoding_time / self._encoding_call_count) * 1000,
+            'total_time_s': self._total_encoding_time
+        }
