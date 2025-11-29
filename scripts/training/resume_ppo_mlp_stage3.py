@@ -37,7 +37,7 @@ def main():
     )
 
     # Set seed and device
-    set_seed(42)
+    set_seed(67)
     device = get_device()
 
     # Create trainer

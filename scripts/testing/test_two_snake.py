@@ -51,7 +51,7 @@ class TestEnvironmentInitialization:
     def test_reset(self):
         """Test environment reset"""
         env = VectorizedTwoSnakeEnv(num_envs=4)
-        obs1, obs2 = env.reset(seed=42)
+        obs1, obs2 = env.reset(seed=67)
 
         # Check observation shapes
         assert obs1.shape == (4, 35), f"obs1 shape: {obs1.shape}"
@@ -92,7 +92,7 @@ class TestCollisions:
     def test_wall_collision(self):
         """Test snakes collide with walls"""
         env = VectorizedTwoSnakeEnv(num_envs=1, grid_size=10)
-        env.reset(seed=42)
+        env.reset(seed=67)
 
         # Position snake1 near top wall, facing up
         env.snakes1[0, 0] = torch.tensor([5, 0], device=env.device)  # At top edge
@@ -113,7 +113,7 @@ class TestCollisions:
     def test_self_collision(self):
         """Test snake collides with its own body"""
         env = VectorizedTwoSnakeEnv(num_envs=1, grid_size=10)
-        env.reset(seed=42)
+        env.reset(seed=67)
 
         # Create snake that will collide with itself
         # Snake in a position where turning will cause self-collision
@@ -140,7 +140,7 @@ class TestCollisions:
     def test_opponent_collision(self):
         """Test snake collides with opponent's body"""
         env = VectorizedTwoSnakeEnv(num_envs=1, grid_size=10)
-        env.reset(seed=42)
+        env.reset(seed=67)
 
         # Position snake1 to collide with snake2's body
         env.snakes1[0, 0] = torch.tensor([4, 5], device=env.device)  # Snake1 head
@@ -168,7 +168,7 @@ class TestCollisions:
     def test_head_to_head_collision(self):
         """Test both snakes die in head-to-head collision"""
         env = VectorizedTwoSnakeEnv(num_envs=1, grid_size=10)
-        env.reset(seed=42)
+        env.reset(seed=67)
 
         # Position snakes to collide head-on
         env.snakes1[0, 0] = torch.tensor([4, 5], device=env.device)
@@ -201,7 +201,7 @@ class TestFoodCollection:
     def test_snake1_collects_food(self):
         """Test snake1 successfully collects food"""
         env = VectorizedTwoSnakeEnv(num_envs=1, grid_size=10)
-        env.reset(seed=42)
+        env.reset(seed=67)
 
         # Position snake1 next to food
         food_pos = env.foods[0].clone()
@@ -228,7 +228,7 @@ class TestFoodCollection:
     def test_opponent_food_penalty(self):
         """Test snake receives penalty when opponent collects food"""
         env = VectorizedTwoSnakeEnv(num_envs=1, grid_size=10)
-        env.reset(seed=42)
+        env.reset(seed=67)
 
         # Position snake2 next to food
         food_pos = env.foods[0].clone()
@@ -251,7 +251,7 @@ class TestFoodCollection:
     def test_food_respawn(self):
         """Test food respawns after collection"""
         env = VectorizedTwoSnakeEnv(num_envs=1, grid_size=10)
-        env.reset(seed=42)
+        env.reset(seed=67)
 
         old_food_pos = env.foods[0].clone()
 
@@ -276,7 +276,7 @@ class TestWinConditions:
     def test_win_by_target_food(self):
         """Test snake wins by reaching target food count"""
         env = VectorizedTwoSnakeEnv(num_envs=1, grid_size=10, target_food=3)
-        env.reset(seed=42)
+        env.reset(seed=67)
 
         # Set snake1 to 2 food, then collect one more
         env.food_counts1[0] = 2
@@ -303,7 +303,7 @@ class TestWinConditions:
     def test_win_by_survival(self):
         """Test snake wins when opponent dies"""
         env = VectorizedTwoSnakeEnv(num_envs=1, grid_size=10)
-        env.reset(seed=42)
+        env.reset(seed=67)
 
         # Kill snake2
         env.alive2[0] = False
@@ -322,7 +322,7 @@ class TestWinConditions:
     def test_stalemate(self):
         """Test stalemate when both die or timeout"""
         env = VectorizedTwoSnakeEnv(num_envs=1, grid_size=10, max_steps=10)
-        env.reset(seed=42)
+        env.reset(seed=67)
 
         # Set to max steps
         env.steps[0] = 10
@@ -345,7 +345,7 @@ class TestStateRepresentation:
     def test_observation_shape(self):
         """Test observations have correct shape"""
         env = VectorizedTwoSnakeEnv(num_envs=4)
-        obs1, obs2 = env.reset(seed=42)
+        obs1, obs2 = env.reset(seed=67)
 
         assert obs1.shape == (4, 35), f"obs1 shape: {obs1.shape}"
         assert obs2.shape == (4, 35), f"obs2 shape: {obs2.shape}"
@@ -353,7 +353,7 @@ class TestStateRepresentation:
     def test_observation_range(self):
         """Test all features are normalized [0, 1]"""
         env = VectorizedTwoSnakeEnv(num_envs=8)
-        obs1, obs2 = env.reset(seed=42)
+        obs1, obs2 = env.reset(seed=67)
 
         # Run a few random steps
         for _ in range(20):
@@ -370,7 +370,7 @@ class TestStateRepresentation:
     def test_agent_centric_observations(self):
         """Test observations are agent-centric (different for each snake)"""
         env = VectorizedTwoSnakeEnv(num_envs=4)
-        obs1, obs2 = env.reset(seed=42)
+        obs1, obs2 = env.reset(seed=67)
 
         # Observations should be different (each snake sees from own perspective)
         # At minimum, direction encoding should differ
@@ -402,7 +402,7 @@ class TestScriptedOpponents:
     def test_static_agent(self):
         """Test StaticAgent always goes straight"""
         env = VectorizedTwoSnakeEnv(num_envs=8)
-        env.reset(seed=42)
+        env.reset(seed=67)
 
         agent = StaticAgent(device=env.device)
 
@@ -414,7 +414,7 @@ class TestScriptedOpponents:
     def test_random_agent(self):
         """Test RandomAgent returns valid random actions"""
         env = VectorizedTwoSnakeEnv(num_envs=8)
-        env.reset(seed=42)
+        env.reset(seed=67)
 
         agent = RandomAgent(device=env.device)
 
@@ -427,7 +427,7 @@ class TestScriptedOpponents:
     def test_greedy_food_agent(self):
         """Test GreedyFoodAgent returns valid actions"""
         env = VectorizedTwoSnakeEnv(num_envs=8)
-        env.reset(seed=42)
+        env.reset(seed=67)
 
         agent = GreedyFoodAgent(device=env.device, grid_size=env.grid_size)
 
@@ -439,7 +439,7 @@ class TestScriptedOpponents:
     def test_defensive_agent(self):
         """Test DefensiveAgent returns valid actions"""
         env = VectorizedTwoSnakeEnv(num_envs=8)
-        env.reset(seed=42)
+        env.reset(seed=67)
 
         agent = DefensiveAgent(device=env.device, grid_size=env.grid_size)
 
@@ -472,7 +472,7 @@ class TestPerformance:
         num_steps = 1000
 
         env = VectorizedTwoSnakeEnv(num_envs=num_envs)
-        env.reset(seed=42)
+        env.reset(seed=67)
 
         # Warmup
         for _ in range(10):
@@ -508,7 +508,7 @@ class TestPerformance:
 
         num_envs = 128
         env = VectorizedTwoSnakeEnv(num_envs=num_envs, device=torch.device('cuda'))
-        env.reset(seed=42)
+        env.reset(seed=67)
 
         # Run some steps
         for _ in range(100):
@@ -529,7 +529,7 @@ class TestIntegration:
     def test_full_episode(self):
         """Test complete episode from start to finish"""
         env = VectorizedTwoSnakeEnv(num_envs=4, target_food=5, max_steps=500)
-        obs1, obs2 = env.reset(seed=42)
+        obs1, obs2 = env.reset(seed=67)
 
         done_count = 0
         step_count = 0
@@ -560,7 +560,7 @@ class TestIntegration:
 
         total_episodes = 0
 
-        obs1, obs2 = env.reset(seed=42)
+        obs1, obs2 = env.reset(seed=67)
 
         for _ in range(500):
             actions1 = torch.randint(0, 3, (8,), device=env.device)

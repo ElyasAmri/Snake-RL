@@ -68,7 +68,7 @@ class PPOConfig:
     save_interval: int = 10000
 
     # Other
-    seed: int = 42
+    seed: int = 67
     save_dir: str = 'results/weights/ppo_two_snake_mlp'
     max_time: Optional[int] = None  # Maximum training time in seconds
 
@@ -601,7 +601,7 @@ def main():
     parser.add_argument('--actor-lr', type=float, default=0.0003, help='Actor learning rate')
     parser.add_argument('--critic-lr', type=float, default=0.0003, help='Critic learning rate')
     parser.add_argument('--save-dir', type=str, default='results/weights/ppo_two_snake_mlp', help='Save directory')
-    parser.add_argument('--seed', type=int, default=42, help='Random seed')
+    parser.add_argument('--seed', type=int, default=67, help='Random seed')
     parser.add_argument('--max-time', type=int, default=None, help='Maximum training time in seconds')
 
     args = parser.parse_args()

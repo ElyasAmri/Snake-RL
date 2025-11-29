@@ -31,14 +31,18 @@ class ReplayBuffer:
     random batches for training.
     """
 
-    def __init__(self, capacity: int = 10000):
+    def __init__(self, capacity: int = 10000, seed: int = None):
         """
         Initialize replay buffer.
 
         Args:
             capacity: Maximum number of transitions to store
+            seed: Random seed for reproducibility
         """
         self.buffer: Deque = deque(maxlen=capacity)
+        if seed is not None:
+            random.seed(seed)
+            np.random.seed(seed)
 
     def push(
         self,
@@ -156,7 +160,8 @@ class VanillaDQNAgent:
         batch_size: int = 64,
         use_target_network: bool = False,
         target_update_freq: int = 100,
-        device: Optional[str] = None
+        device: Optional[str] = None,
+        seed: int = 67
     ):
         """
         Initialize Vanilla DQN agent.
@@ -175,6 +180,7 @@ class VanillaDQNAgent:
             use_target_network: Whether to use target network
             target_update_freq: Steps between target network updates
             device: Device to use (cuda/cpu)
+            seed: Random seed for reproducibility
         """
         # Basic attributes
         self.name = "Vanilla DQN"
@@ -217,7 +223,7 @@ class VanillaDQNAgent:
             self.target_network = None
 
         # Replay buffer
-        self.replay_buffer = ReplayBuffer(capacity=buffer_size)
+        self.replay_buffer = ReplayBuffer(capacity=buffer_size, seed=seed)
 
     def select_action(self, state: np.ndarray, training: bool = True) -> int:
         """

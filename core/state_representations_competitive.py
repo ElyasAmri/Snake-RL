@@ -47,9 +47,11 @@ class CompetitiveFeatureEncoder:
 
     def __init__(
         self,
-        grid_size: int,
-        max_length: int,
-        target_food: int,
+        grid_width: int = None,
+        grid_height: int = None,
+        grid_size: int = None,  # DEPRECATED: Use grid_width and grid_height instead
+        max_length: int = None,
+        target_food: int = None,
         device: torch.device = None,
         use_flood_fill: bool = False
     ):
@@ -57,21 +59,34 @@ class CompetitiveFeatureEncoder:
         Initialize competitive feature encoder.
 
         Args:
-            grid_size: Size of the game grid
+            grid_width: Width of the game grid
+            grid_height: Height of the game grid
+            grid_size: DEPRECATED - Use grid_width and grid_height instead
             max_length: Maximum snake length
             target_food: Target food count to win
             device: PyTorch device (CPU or CUDA)
             use_flood_fill: Enable CPU-intensive flood-fill features (default: False for speed)
         """
-        self.grid_size = grid_size
+        # Handle backward compatibility for grid dimensions
+        if grid_width is None and grid_height is None:
+            if grid_size is None:
+                raise ValueError("Must specify either (grid_width, grid_height) or grid_size")
+            self.grid_width = grid_size
+            self.grid_height = grid_size
+        else:
+            assert grid_width is not None and grid_height is not None, \
+                "Both grid_width and grid_height must be specified"
+            self.grid_width = grid_width
+            self.grid_height = grid_height
+
         self.max_length = max_length
         self.target_food = target_food
         self.device = device if device is not None else torch.device('cpu')
         self.use_flood_fill = use_flood_fill
 
         # Precompute grid diagonal for normalization
-        self.grid_diagonal = (grid_size ** 2 + grid_size ** 2) ** 0.5
-        self.total_cells = grid_size * grid_size
+        self.grid_diagonal = (self.grid_width ** 2 + self.grid_height ** 2) ** 0.5
+        self.total_cells = self.grid_width * self.grid_height
 
         # Direction deltas: UP=0, RIGHT=1, DOWN=2, LEFT=3
         self.direction_deltas = torch.tensor([
@@ -189,9 +204,10 @@ class CompetitiveFeatureEncoder:
                 snake_opponent, length_opponent
             )
         else:
-            # Use simple heuristic: reachable if distance < grid_size / 2
+            # Use simple heuristic: reachable if distance < average dimension / 2
+            avg_dimension = (self.grid_width + self.grid_height) / 2
             dist = self._compute_manhattan_distance(head_self, head_opponent)
-            features[:, 28] = (dist < self.grid_size / 2).float()
+            features[:, 28] = (dist < avg_dimension / 2).float()
 
         # ========== COMPETITIVE METRICS (6 dims) ==========
 
@@ -271,8 +287,8 @@ class CompetitiveFeatureEncoder:
         x_coords = next_positions[:, :, 0]  # (batch, 4)
         y_coords = next_positions[:, :, 1]  # (batch, 4)
         is_wall = (
-            (x_coords < 0) | (x_coords >= self.grid_size) |
-            (y_coords < 0) | (y_coords >= self.grid_size)
+            (x_coords < 0) | (x_coords >= self.grid_width) |   # X bound
+            (y_coords < 0) | (y_coords >= self.grid_height)    # Y bound
         ).float()  # (batch, 4)
 
         # Check self collisions (vectorized)
@@ -365,8 +381,8 @@ class CompetitiveFeatureEncoder:
                 next_pos = head[b] + torch.tensor([dx, dy], device=self.device)
 
                 # Check if position is safe
-                if (next_pos[0] >= 0 and next_pos[0] < self.grid_size and
-                    next_pos[1] >= 0 and next_pos[1] < self.grid_size):
+                if (next_pos[0] >= 0 and next_pos[0] < self.grid_width and
+                    next_pos[1] >= 0 and next_pos[1] < self.grid_height):
 
                     # Perform flood-fill from this position
                     free_space = self._flood_fill_from_position(
@@ -416,8 +432,8 @@ class CompetitiveFeatureEncoder:
                 neighbor = (x + dx, y + dy)
                 nx, ny = neighbor
 
-                if (0 <= nx < self.grid_size and
-                    0 <= ny < self.grid_size and
+                if (0 <= nx < self.grid_width and
+                    0 <= ny < self.grid_height and
                     neighbor not in visited and
                     neighbor not in obstacles):
                     visited.add(neighbor)
@@ -583,8 +599,8 @@ class CompetitiveFeatureEncoder:
                     neighbor = (x + dx, y + dy)
                     nx, ny = neighbor
 
-                    if (0 <= nx < self.grid_size and
-                        0 <= ny < self.grid_size and
+                    if (0 <= nx < self.grid_width and
+                        0 <= ny < self.grid_height and
                         neighbor not in visited and
                         neighbor not in obstacles):
                         visited.add(neighbor)
@@ -634,18 +650,37 @@ class CompetitiveGridEncoder:
         3: Opponent body positions
         4: Food position
 
-    Output shape: (batch_size, grid_size, grid_size, 5)
+    Output shape: (batch_size, grid_height, grid_width, 5)
     """
 
-    def __init__(self, grid_size: int, device: torch.device = None):
+    def __init__(
+        self,
+        grid_width: int = None,
+        grid_height: int = None,
+        grid_size: int = None,  # DEPRECATED: Use grid_width and grid_height instead
+        device: torch.device = None
+    ):
         """
         Initialize competitive grid encoder.
 
         Args:
-            grid_size: Size of the game grid
+            grid_width: Width of the game grid
+            grid_height: Height of the game grid
+            grid_size: DEPRECATED - Use grid_width and grid_height instead
             device: PyTorch device (CPU or CUDA)
         """
-        self.grid_size = grid_size
+        # Handle backward compatibility for grid dimensions
+        if grid_width is None and grid_height is None:
+            if grid_size is None:
+                raise ValueError("Must specify either (grid_width, grid_height) or grid_size")
+            self.grid_width = grid_size
+            self.grid_height = grid_size
+        else:
+            assert grid_width is not None and grid_height is not None, \
+                "Both grid_width and grid_height must be specified"
+            self.grid_width = grid_width
+            self.grid_height = grid_height
+
         self.device = device if device is not None else torch.device('cpu')
 
         # Profiling
@@ -671,7 +706,7 @@ class CompetitiveGridEncoder:
             food: (batch, 2) - food positions
 
         Returns:
-            (batch, grid_size, grid_size, 5) grid tensor
+            (batch, grid_height, grid_width, 5) grid tensor
         """
         import time
         t0 = time.perf_counter()
@@ -680,7 +715,7 @@ class CompetitiveGridEncoder:
         max_length = snake_self.shape[1]
 
         grid = torch.zeros(
-            (batch_size, self.grid_size, self.grid_size, 5),
+            (batch_size, self.grid_height, self.grid_width, 5),
             dtype=torch.float32,
             device=self.device
         )
@@ -689,9 +724,9 @@ class CompetitiveGridEncoder:
         head_pos_self = snake_self[:, 0, :].long()  # (batch, 2)
         valid_heads_self = (
             (head_pos_self[:, 0] >= 0) &
-            (head_pos_self[:, 0] < self.grid_size) &
+            (head_pos_self[:, 0] < self.grid_width) &   # X bound
             (head_pos_self[:, 1] >= 0) &
-            (head_pos_self[:, 1] < self.grid_size)
+            (head_pos_self[:, 1] < self.grid_height)    # Y bound
         )
         valid_batch_idx = torch.arange(batch_size, device=self.device)[valid_heads_self]
         valid_x = head_pos_self[valid_heads_self, 0]
@@ -706,9 +741,9 @@ class CompetitiveGridEncoder:
         valid_body_self = (
             body_mask_self &
             (body_positions_self[..., 0] >= 0) &
-            (body_positions_self[..., 0] < self.grid_size) &
+            (body_positions_self[..., 0] < self.grid_width) &   # X bound
             (body_positions_self[..., 1] >= 0) &
-            (body_positions_self[..., 1] < self.grid_size)
+            (body_positions_self[..., 1] < self.grid_height)    # Y bound
         )
 
         # Get flattened indices for valid body segments
@@ -721,9 +756,9 @@ class CompetitiveGridEncoder:
         head_pos_opp = snake_opponent[:, 0, :].long()  # (batch, 2)
         valid_heads_opp = (
             (head_pos_opp[:, 0] >= 0) &
-            (head_pos_opp[:, 0] < self.grid_size) &
+            (head_pos_opp[:, 0] < self.grid_width) &   # X bound
             (head_pos_opp[:, 1] >= 0) &
-            (head_pos_opp[:, 1] < self.grid_size)
+            (head_pos_opp[:, 1] < self.grid_height)    # Y bound
         )
         valid_batch_idx_opp = torch.arange(batch_size, device=self.device)[valid_heads_opp]
         valid_x_opp = head_pos_opp[valid_heads_opp, 0]
@@ -737,9 +772,9 @@ class CompetitiveGridEncoder:
         valid_body_opp = (
             body_mask_opp &
             (body_positions_opp[..., 0] >= 0) &
-            (body_positions_opp[..., 0] < self.grid_size) &
+            (body_positions_opp[..., 0] < self.grid_width) &   # X bound
             (body_positions_opp[..., 1] >= 0) &
-            (body_positions_opp[..., 1] < self.grid_size)
+            (body_positions_opp[..., 1] < self.grid_height)    # Y bound
         )
 
         # Get flattened indices for valid body segments
@@ -752,9 +787,9 @@ class CompetitiveGridEncoder:
         food_pos = food.long()  # (batch, 2)
         valid_food = (
             (food_pos[:, 0] >= 0) &
-            (food_pos[:, 0] < self.grid_size) &
+            (food_pos[:, 0] < self.grid_width) &   # X bound
             (food_pos[:, 1] >= 0) &
-            (food_pos[:, 1] < self.grid_size)
+            (food_pos[:, 1] < self.grid_height)    # Y bound
         )
         valid_batch_idx_food = torch.arange(batch_size, device=self.device)[valid_food]
         valid_x_food = food_pos[valid_food, 0]

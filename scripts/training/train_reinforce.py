@@ -97,7 +97,7 @@ class REINFORCETrainer:
         max_steps: int = 1000,
 
         # Other
-        seed: int = 42,
+        seed: int = 67,
         device: Optional[torch.device] = None,
         save_dir: str = 'results/weights',
         max_time: Optional[int] = None  # Maximum training time in seconds

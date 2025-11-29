@@ -325,7 +325,7 @@ Selects actions uniformly at random. Used as a lower-bound baseline.
 
 ```python
 from scripts.baselines import RandomAgent
-agent = RandomAgent(action_space_type='relative', seed=42)
+agent = RandomAgent(action_space_type='relative', seed=67)
 action = agent.get_action(env)
 ```
 

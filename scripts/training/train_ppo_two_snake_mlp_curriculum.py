@@ -447,7 +447,7 @@ def main():
     parser.add_argument('--save-dir', type=str,
                         default='results/weights/ppo_two_snake_mlp_curriculum',
                         help='Directory to save checkpoints')
-    parser.add_argument('--seed', type=int, default=42,
+    parser.add_argument('--seed', type=int, default=67,
                         help='Random seed')
     parser.add_argument('--max-time', type=int, default=None,
                         help='Maximum training time in seconds')

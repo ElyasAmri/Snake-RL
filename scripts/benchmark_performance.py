@@ -40,7 +40,7 @@ class DQNBenchmark:
                 - "both": Apply both optimizations
             device: PyTorch device
         """
-        set_seed(42)
+        set_seed(67)
         self.device = device if device else get_device()
         self.num_envs = num_envs
         self.num_episodes = num_episodes
@@ -73,7 +73,7 @@ class DQNBenchmark:
         self.optimizer = torch.optim.Adam(self.policy_net.parameters(), lr=0.0005)
 
         # Replay buffer
-        self.replay_buffer = ReplayBuffer(self.buffer_size, seed=42)
+        self.replay_buffer = ReplayBuffer(self.buffer_size, seed=67)
 
         # Epsilon scheduler
         self.epsilon_scheduler = EpsilonScheduler(
@@ -151,7 +151,7 @@ class DQNBenchmark:
         start_time = time.time()
 
         # Initialize
-        states = self.env.reset(seed=42)
+        states = self.env.reset(seed=67)
         episode_rewards = torch.zeros(self.num_envs, device=self.device)
         episode_lengths = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
 

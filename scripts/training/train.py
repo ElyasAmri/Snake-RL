@@ -399,7 +399,7 @@ def create_parser():
                        help='Maximum steps per episode')
     parser.add_argument('--gamma', type=float, default=0.99,
                        help='Discount factor')
-    parser.add_argument('--seed', type=int, default=42,
+    parser.add_argument('--seed', type=int, default=67,
                        help='Random seed')
     parser.add_argument('--log-interval', type=int, default=100,
                        help='Episodes between logging')

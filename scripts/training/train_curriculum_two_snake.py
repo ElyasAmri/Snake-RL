@@ -78,7 +78,7 @@ class TwoSnakeDQN:
         self.scaler = GradScaler()
 
         # Replay buffer
-        self.replay_buffer = ReplayBuffer(capacity=50000, seed=42)
+        self.replay_buffer = ReplayBuffer(capacity=50000, seed=67)
 
         # Epsilon scheduler
         # FIXED: Extended decay from 5000 to 52500 to cover full curriculum
@@ -203,7 +203,7 @@ class CurriculumTrainer:
         log_interval: int = 100,
         save_dir: str = 'results/weights/competitive',
         device: Optional[torch.device] = None,
-        seed: int = 42,
+        seed: int = 67,
         max_time: Optional[int] = None  # Maximum training time in seconds
     ):
         """Initialize curriculum trainer"""
@@ -662,7 +662,7 @@ def main():
     parser.add_argument('--batch-size', type=int, default=64, help='Batch size')
     parser.add_argument('--train-steps-ratio', type=float, default=0.25, help='Training steps per collected transition (0.03125=fast, 0.25=balanced, 0.5=quality)')
     parser.add_argument('--save-dir', type=str, default='results/weights/competitive', help='Save directory')
-    parser.add_argument('--seed', type=int, default=42, help='Random seed')
+    parser.add_argument('--seed', type=int, default=67, help='Random seed')
     parser.add_argument('--log-interval', type=int, default=100, help='Logging interval')
     parser.add_argument('--max-time', type=int, default=None, help='Maximum training time in seconds')
 

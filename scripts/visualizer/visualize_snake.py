@@ -6,6 +6,8 @@ Visualize Snake RL in 3 modes:
 2. Trained: Watch saved model play
 3. Training: Watch agent train in real-time
 
+Supports algorithms: DQN variants (dqn, dueling, noisy)
+
 Usage:
     python scripts/visualizer/visualize_snake.py --mode random --fps 10
     python scripts/visualizer/visualize_snake.py --mode trained --weights results/weights/dueling_dqn_mlp.pt --network dueling
@@ -257,7 +259,7 @@ class SnakeVisualizer:
             gamma=0.99,
             target_update_freq=1000,
             min_buffer_size=1000,
-            seed=42,
+            seed=67,
             device=self.device
         )
 

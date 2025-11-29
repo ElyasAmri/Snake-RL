@@ -36,7 +36,9 @@ class VectorizedTwoSnakeEnv:
     def __init__(
         self,
         num_envs: int = 128,
-        grid_size: int = 20,  # Increased from 10 to give more space for learning
+        grid_size: int = None,  # DEPRECATED: Use grid_width and grid_height instead
+        grid_width: int = None,
+        grid_height: int = None,
         max_steps: int = 1000,
         target_food: int = 10,
         reward_food: float = 10.0,
@@ -52,7 +54,9 @@ class VectorizedTwoSnakeEnv:
 
         Args:
             num_envs: Number of parallel environments (reduced to 128 for 2x snakes)
-            grid_size: Size of game grid (10x10 default)
+            grid_size: DEPRECATED - Use grid_width and grid_height for square grids
+            grid_width: Width of game grid (supports rectangular grids)
+            grid_height: Height of game grid (supports rectangular grids)
             max_steps: Maximum steps before timeout/stalemate
             target_food: Food count needed to win round
             reward_food: Reward for collecting food
@@ -63,8 +67,19 @@ class VectorizedTwoSnakeEnv:
             reward_stalemate: Penalty if timeout without winner
             device: PyTorch device (GPU/CPU)
         """
+        # Handle backward compatibility for grid dimensions
+        if grid_width is None and grid_height is None:
+            if grid_size is None:
+                grid_size = 20  # Default square grid
+            self.grid_width = grid_size
+            self.grid_height = grid_size
+        else:
+            assert grid_width is not None and grid_height is not None, \
+                "Both grid_width and grid_height must be specified"
+            self.grid_width = grid_width
+            self.grid_height = grid_height
+
         self.num_envs = num_envs
-        self.grid_size = grid_size
         self.max_steps = max_steps
         self.target_food = target_food
 
@@ -97,8 +112,9 @@ class VectorizedTwoSnakeEnv:
         # Initialize competitive feature encoder
         # Note: use_flood_fill=False for speed (avoids CPU bottleneck)
         self.feature_encoder = CompetitiveFeatureEncoder(
-            grid_size=grid_size,
-            max_length=grid_size * grid_size,
+            grid_width=self.grid_width,
+            grid_height=self.grid_height,
+            max_length=self.max_length,
             target_food=target_food,
             device=self.device,
             use_flood_fill=False
@@ -107,6 +123,21 @@ class VectorizedTwoSnakeEnv:
         # Initialize game state by resetting all environments
         self.reset()
 
+    @property
+    def grid_diagonal(self) -> float:
+        """Calculate true diagonal distance for normalization"""
+        return (self.grid_width ** 2 + self.grid_height ** 2) ** 0.5
+
+    @property
+    def total_cells(self) -> int:
+        """Total number of cells in grid"""
+        return self.grid_width * self.grid_height
+
+    @property
+    def max_length(self) -> int:
+        """Maximum possible snake length"""
+        return self.total_cells
+
     def set_target_food(self, target_food: int):
         """Dynamically change target food for curriculum learning"""
         self.target_food = target_food
@@ -114,8 +145,7 @@ class VectorizedTwoSnakeEnv:
 
     def _init_state_tensors(self):
         """Initialize all state tensors on GPU"""
-        self.max_length = self.grid_size * self.grid_size
-        max_length = self.max_length
+        max_length = self.max_length  # Use property
 
         # Snake 1 (Big network - 256x256)
         self.snakes1 = torch.zeros(
@@ -162,19 +192,20 @@ class VectorizedTwoSnakeEnv:
             np.random.seed(seed)
 
         # VECTORIZED: Reset all environments at once
-        center = self.grid_size // 2
+        # For rectangular grids, spawn snakes in left/right quarters
+        center_x1 = self.grid_width // 4  # Left quarter for snake 1
+        center_x2 = (self.grid_width * 3) // 4  # Right quarter for snake 2
+        center_y = self.grid_height // 2  # Vertical center
 
         # Initialize snake 1 (left side, heading right) - ALL environments at once
-        start_x1 = center - 3
-        self.snakes1[:, 0] = torch.tensor([start_x1, center], device=self.device)
-        self.snakes1[:, 1] = torch.tensor([start_x1 - 1, center], device=self.device)
-        self.snakes1[:, 2] = torch.tensor([start_x1 - 2, center], device=self.device)
+        self.snakes1[:, 0] = torch.tensor([center_x1, center_y], device=self.device)
+        self.snakes1[:, 1] = torch.tensor([center_x1 - 1, center_y], device=self.device)
+        self.snakes1[:, 2] = torch.tensor([center_x1 - 2, center_y], device=self.device)
 
         # Initialize snake 2 (right side, heading left) - ALL environments at once
-        start_x2 = center + 3
-        self.snakes2[:, 0] = torch.tensor([start_x2, center], device=self.device)
-        self.snakes2[:, 1] = torch.tensor([start_x2 + 1, center], device=self.device)
-        self.snakes2[:, 2] = torch.tensor([start_x2 + 2, center], device=self.device)
+        self.snakes2[:, 0] = torch.tensor([center_x2, center_y], device=self.device)
+        self.snakes2[:, 1] = torch.tensor([center_x2 + 1, center_y], device=self.device)
+        self.snakes2[:, 2] = torch.tensor([center_x2 + 2, center_y], device=self.device)
 
         self.lengths1[:] = 3
         self.lengths2[:] = 3
@@ -197,12 +228,10 @@ class VectorizedTwoSnakeEnv:
 
     def _spawn_food_all(self):
         """VECTORIZED: Spawn food in all environments at random empty cells"""
-        # Generate random positions for all environments
-        candidate_foods = torch.randint(
-            0, self.grid_size,
-            (self.num_envs, 2),
-            device=self.device
-        )
+        # Generate random positions for all environments (handle rectangular grids)
+        food_x = torch.randint(0, self.grid_width, (self.num_envs,), device=self.device)
+        food_y = torch.randint(0, self.grid_height, (self.num_envs,), device=self.device)
+        candidate_foods = torch.stack([food_x, food_y], dim=1)
 
         # For simplicity, accept the random position (collision probability is low early in game)
         # A fully vectorized collision check would be too complex for marginal benefit
@@ -218,7 +247,10 @@ class VectorizedTwoSnakeEnv:
         # Find empty cells
         max_attempts = 100
         for _ in range(max_attempts):
-            food_pos = torch.randint(0, self.grid_size, (2,), device=self.device)
+            # Generate random position for rectangular grid
+            food_x = torch.randint(0, self.grid_width, (1,), device=self.device).item()
+            food_y = torch.randint(0, self.grid_height, (1,), device=self.device).item()
+            food_pos = torch.tensor([food_x, food_y], device=self.device)
 
             # Check if position is empty
             if not ((occupied == food_pos).all(dim=1).any()):
@@ -226,7 +258,7 @@ class VectorizedTwoSnakeEnv:
                 return
 
         # Fallback: place food at grid center if no empty cell found
-        self.foods[env_idx] = torch.tensor([self.grid_size // 2, self.grid_size // 2], device=self.device)
+        self.foods[env_idx] = torch.tensor([self.grid_width // 2, self.grid_height // 2], device=self.device)
 
     def step(
         self, actions1: torch.Tensor, actions2: torch.Tensor
@@ -418,9 +450,9 @@ class VectorizedTwoSnakeEnv:
         # Wall collisions - pure tensor operations
         wall_collision = (
             (heads[:, 0] < 0) |
-            (heads[:, 0] >= self.grid_size) |
+            (heads[:, 0] >= self.grid_width) |  # X bound
             (heads[:, 1] < 0) |
-            (heads[:, 1] >= self.grid_size)
+            (heads[:, 1] >= self.grid_height)   # Y bound
         )
 
         # Self collisions - broadcast comparison
@@ -564,23 +596,24 @@ class VectorizedTwoSnakeEnv:
 
         for env_idx in done_indices:
             env_idx = env_idx.item()
-            center = self.grid_size // 2
+            # For rectangular grids, spawn snakes in left/right quarters
+            center_x1 = self.grid_width // 4  # Left quarter for snake 1
+            center_x2 = (self.grid_width * 3) // 4  # Right quarter for snake 2
+            center_y = self.grid_height // 2  # Vertical center
 
             # Reset snake 1
-            start_x1 = center - 3
-            self.snakes1[env_idx, 0] = torch.tensor([start_x1, center], device=self.device)
-            self.snakes1[env_idx, 1] = torch.tensor([start_x1 - 1, center], device=self.device)
-            self.snakes1[env_idx, 2] = torch.tensor([start_x1 - 2, center], device=self.device)
+            self.snakes1[env_idx, 0] = torch.tensor([center_x1, center_y], device=self.device)
+            self.snakes1[env_idx, 1] = torch.tensor([center_x1 - 1, center_y], device=self.device)
+            self.snakes1[env_idx, 2] = torch.tensor([center_x1 - 2, center_y], device=self.device)
             self.lengths1[env_idx] = 3
             self.directions1[env_idx] = self.RIGHT
             self.alive1[env_idx] = True
             self.food_counts1[env_idx] = 0
 
             # Reset snake 2
-            start_x2 = center + 3
-            self.snakes2[env_idx, 0] = torch.tensor([start_x2, center], device=self.device)
-            self.snakes2[env_idx, 1] = torch.tensor([start_x2 + 1, center], device=self.device)
-            self.snakes2[env_idx, 2] = torch.tensor([start_x2 + 2, center], device=self.device)
+            self.snakes2[env_idx, 0] = torch.tensor([center_x2, center_y], device=self.device)
+            self.snakes2[env_idx, 1] = torch.tensor([center_x2 + 1, center_y], device=self.device)
+            self.snakes2[env_idx, 2] = torch.tensor([center_x2 + 2, center_y], device=self.device)
             self.lengths2[env_idx] = 3
             self.directions2[env_idx] = self.LEFT
             self.alive2[env_idx] = True

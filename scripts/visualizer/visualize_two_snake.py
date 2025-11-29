@@ -33,7 +33,7 @@ import argparse
 import numpy as np
 
 from core.environment_two_snake_vectorized import VectorizedTwoSnakeEnv
-from core.networks import DQN_MLP
+from core.networks import DQN_MLP, PPO_Actor_MLP
 from scripts.baselines.scripted_opponents import get_scripted_agent
 
 # Colors
@@ -279,15 +279,32 @@ class TwoSnakeVisualizer:
         print(f"  Agent 1: {weights1_path}")
         print(f"  Agent 2: {weights2_path}")
 
-        # Load networks
-        agent1_net = DQN_MLP(input_dim=35, output_dim=3, hidden_dims=(256, 256)).to(self.device)
-        agent2_net = DQN_MLP(input_dim=35, output_dim=3, hidden_dims=(128, 128)).to(self.device)
+        # Load checkpoints to detect type
+        checkpoint1 = torch.load(weights1_path, map_location=self.device, weights_only=False)
+        checkpoint2 = torch.load(weights2_path, map_location=self.device, weights_only=False)
 
-        checkpoint1 = torch.load(weights1_path, map_location=self.device)
-        checkpoint2 = torch.load(weights2_path, map_location=self.device)
+        # Detect checkpoint type and create networks
+        if 'actor' in checkpoint1:
+            # PPO checkpoint
+            agent1_net = PPO_Actor_MLP(input_dim=35, output_dim=3, hidden_dims=(256, 256)).to(self.device)
+            agent1_net.load_state_dict(checkpoint1['actor'])
+        elif 'policy_net' in checkpoint1:
+            # DQN checkpoint
+            agent1_net = DQN_MLP(input_dim=35, output_dim=3, hidden_dims=(256, 256)).to(self.device)
+            agent1_net.load_state_dict(checkpoint1['policy_net'])
+        else:
+            raise ValueError(f"Unknown checkpoint format for agent 1: {list(checkpoint1.keys())}")
 
-        agent1_net.load_state_dict(checkpoint1['policy_net'])
-        agent2_net.load_state_dict(checkpoint2['policy_net'])
+        if 'actor' in checkpoint2:
+            # PPO checkpoint
+            agent2_net = PPO_Actor_MLP(input_dim=35, output_dim=3, hidden_dims=(128, 128)).to(self.device)
+            agent2_net.load_state_dict(checkpoint2['actor'])
+        elif 'policy_net' in checkpoint2:
+            # DQN checkpoint
+            agent2_net = DQN_MLP(input_dim=35, output_dim=3, hidden_dims=(128, 128)).to(self.device)
+            agent2_net.load_state_dict(checkpoint2['policy_net'])
+        else:
+            raise ValueError(f"Unknown checkpoint format for agent 2: {list(checkpoint2.keys())}")
 
         agent1_net.eval()
         agent2_net.eval()
@@ -308,10 +325,23 @@ class TwoSnakeVisualizer:
 
                 # Get actions from networks
                 with torch.no_grad():
-                    q1 = agent1_net(obs1)
-                    q2 = agent2_net(obs2)
-                    actions1 = q1.argmax(dim=1)
-                    actions2 = q2.argmax(dim=1)
+                    output1 = agent1_net(obs1)
+                    output2 = agent2_net(obs2)
+
+                    # Handle different network types
+                    if isinstance(agent1_net, PPO_Actor_MLP):
+                        # PPO returns action probabilities
+                        actions1 = output1.argmax(dim=1)
+                    else:
+                        # DQN returns Q-values
+                        actions1 = output1.argmax(dim=1)
+
+                    if isinstance(agent2_net, PPO_Actor_MLP):
+                        # PPO returns action probabilities
+                        actions2 = output2.argmax(dim=1)
+                    else:
+                        # DQN returns Q-values
+                        actions2 = output2.argmax(dim=1)
 
                 # Step
                 obs1, obs2, r1, r2, dones, info = self.env.step(actions1, actions2)
@@ -340,23 +370,38 @@ class TwoSnakeVisualizer:
         print(f"  Big Network Wins: {self.snake1_wins}")
         print(f"  Small Network Wins: {self.snake2_wins}")
         print(f"  Ties: {self.ties}")
-        win_rate1 = self.snake1_wins / (self.snake1_wins + self.snake2_wins + self.ties)
-        print(f"  Big Network Win Rate: {win_rate1:.2%}")
+        total = self.snake1_wins + self.snake2_wins + self.ties
+        if total > 0:
+            win_rate1 = self.snake1_wins / total
+            print(f"  Big Network Win Rate: {win_rate1:.2%}")
+        else:
+            print("  No rounds completed")
 
     def run_scripted(self, weights1_path, opponent_type='greedy', num_rounds=100):
         """Run trained agent vs scripted opponent"""
         print(f"Loading trained agent: {weights1_path}")
         print(f"Opponent: {opponent_type}")
 
-        # Load agent1 network
-        agent1_net = DQN_MLP(input_dim=35, output_dim=3, hidden_dims=(256, 256)).to(self.device)
-        checkpoint1 = torch.load(weights1_path, map_location=self.device)
-        agent1_net.load_state_dict(checkpoint1['policy_net'])
+        # Load checkpoint to detect type
+        checkpoint1 = torch.load(weights1_path, map_location=self.device, weights_only=False)
+
+        # Detect checkpoint type and create network
+        if 'actor' in checkpoint1:
+            # PPO checkpoint
+            agent1_net = PPO_Actor_MLP(input_dim=35, output_dim=3, hidden_dims=(256, 256)).to(self.device)
+            agent1_net.load_state_dict(checkpoint1['actor'])
+        elif 'policy_net' in checkpoint1:
+            # DQN checkpoint
+            agent1_net = DQN_MLP(input_dim=35, output_dim=3, hidden_dims=(256, 256)).to(self.device)
+            agent1_net.load_state_dict(checkpoint1['policy_net'])
+        else:
+            raise ValueError(f"Unknown checkpoint format: {list(checkpoint1.keys())}")
+
         agent1_net.eval()
 
         # Load scripted opponent
         try:
-            opponent = get_scripted_agent(opponent_type, grid_size=self.grid_size, device=self.device)
+            opponent = get_scripted_agent(opponent_type, device=self.device)
         except Exception as e:
             print(f"Error loading scripted agent: {e}")
             return
@@ -377,8 +422,9 @@ class TwoSnakeVisualizer:
 
                 # Get actions
                 with torch.no_grad():
-                    q1 = agent1_net(obs1)
-                    actions1 = q1.argmax(dim=1)
+                    output1 = agent1_net(obs1)
+                    # Handle different network types (same for both PPO and DQN)
+                    actions1 = output1.argmax(dim=1)
 
                 actions2 = opponent.select_action(self.env)
 
@@ -409,8 +455,12 @@ class TwoSnakeVisualizer:
         print(f"  Trained Agent Wins: {self.snake1_wins}")
         print(f"  Scripted Opponent Wins: {self.snake2_wins}")
         print(f"  Ties: {self.ties}")
-        win_rate1 = self.snake1_wins / (self.snake1_wins + self.snake2_wins + self.ties)
-        print(f"  Trained Agent Win Rate: {win_rate1:.2%}")
+        total = self.snake1_wins + self.snake2_wins + self.ties
+        if total > 0:
+            win_rate1 = self.snake1_wins / total
+            print(f"  Trained Agent Win Rate: {win_rate1:.2%}")
+        else:
+            print("  No rounds completed")
 
 
 def main():

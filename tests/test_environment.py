@@ -29,8 +29,8 @@ class TestSnakeEnv:
 
     def test_reset(self):
         """Test environment reset"""
-        env = SnakeEnv(grid_size=10, seed=42)
-        obs, info = env.reset(seed=42)
+        env = SnakeEnv(grid_size=10, seed=67)
+        obs, info = env.reset(seed=67)
 
         assert isinstance(obs, np.ndarray)
         assert 'score' in info
@@ -41,8 +41,8 @@ class TestSnakeEnv:
 
     def test_step_absolute(self):
         """Test step with absolute actions"""
-        env = SnakeEnv(grid_size=10, action_space_type='absolute', seed=42)
-        obs, info = env.reset(seed=42)
+        env = SnakeEnv(grid_size=10, action_space_type='absolute', seed=67)
+        obs, info = env.reset(seed=67)
 
         # Take a step
         action = 1  # RIGHT
@@ -55,8 +55,8 @@ class TestSnakeEnv:
 
     def test_step_relative(self):
         """Test step with relative actions"""
-        env = SnakeEnv(grid_size=10, action_space_type='relative', seed=42)
-        obs, info = env.reset(seed=42)
+        env = SnakeEnv(grid_size=10, action_space_type='relative', seed=67)
+        obs, info = env.reset(seed=67)
 
         # Take a step
         action = 0  # STRAIGHT
@@ -67,8 +67,8 @@ class TestSnakeEnv:
 
     def test_wall_collision(self):
         """Test that hitting wall terminates episode"""
-        env = SnakeEnv(grid_size=10, action_space_type='absolute', seed=42)
-        obs, info = env.reset(seed=42)
+        env = SnakeEnv(grid_size=10, action_space_type='absolute', seed=67)
+        obs, info = env.reset(seed=67)
 
         # Move left repeatedly until hitting wall
         for _ in range(20):
@@ -81,8 +81,8 @@ class TestSnakeEnv:
 
     def test_food_consumption(self):
         """Test that eating food increases score"""
-        env = SnakeEnv(grid_size=10, action_space_type='absolute', seed=42)
-        obs, info = env.reset(seed=42)
+        env = SnakeEnv(grid_size=10, action_space_type='absolute', seed=67)
+        obs, info = env.reset(seed=67)
 
         initial_length = len(env.snake)
         initial_score = env.score
@@ -102,24 +102,24 @@ class TestSnakeEnv:
 
     def test_feature_observation_shape(self):
         """Test feature observation has correct shape"""
-        env = SnakeEnv(grid_size=10, state_representation='feature', seed=42)
-        obs, info = env.reset(seed=42)
+        env = SnakeEnv(grid_size=10, state_representation='feature', seed=67)
+        obs, info = env.reset(seed=67)
 
         assert obs.shape == (11,)
         assert np.all((obs >= 0) & (obs <= 1))
 
     def test_grid_observation_shape(self):
         """Test grid observation has correct shape"""
-        env = SnakeEnv(grid_size=10, state_representation='grid', seed=42)
-        obs, info = env.reset(seed=42)
+        env = SnakeEnv(grid_size=10, state_representation='grid', seed=67)
+        obs, info = env.reset(seed=67)
 
         assert obs.shape == (10, 10, 3)
         assert np.all((obs >= 0) & (obs <= 1))
 
     def test_max_steps_truncation(self):
         """Test that episode truncates at max steps"""
-        env = SnakeEnv(grid_size=10, max_steps=10, seed=42)
-        obs, info = env.reset(seed=42)
+        env = SnakeEnv(grid_size=10, max_steps=10, seed=67)
+        obs, info = env.reset(seed=67)
 
         # Use safe agent to avoid early termination
         from scripts.baselines.shortest_path import ShortestPathAgent
@@ -137,11 +137,11 @@ class TestSnakeEnv:
 
     def test_reproducibility(self):
         """Test that same seed produces same behavior"""
-        env1 = SnakeEnv(grid_size=10, seed=42)
-        env2 = SnakeEnv(grid_size=10, seed=42)
+        env1 = SnakeEnv(grid_size=10, seed=67)
+        env2 = SnakeEnv(grid_size=10, seed=67)
 
-        obs1, _ = env1.reset(seed=42)
-        obs2, _ = env2.reset(seed=42)
+        obs1, _ = env1.reset(seed=67)
+        obs2, _ = env2.reset(seed=67)
 
         assert np.array_equal(obs1, obs2)
         assert env1.snake == env2.snake

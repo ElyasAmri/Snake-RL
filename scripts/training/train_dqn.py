@@ -77,7 +77,7 @@ class DQNTrainer:
         curriculum_stages: list = None,
 
         # Other
-        seed: int = 42,
+        seed: int = 67,
         device: Optional[torch.device] = None,
         save_dir: str = 'results/weights',
         max_time: Optional[int] = None  # Maximum training time in seconds
@@ -332,7 +332,7 @@ class DQNTrainer:
         print(flush=True)
 
         # Initialize
-        states = self.env.reset(seed=42)
+        states = self.env.reset(seed=67)
         start_time = time.time()
 
         # Episode tracking

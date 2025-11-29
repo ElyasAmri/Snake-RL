@@ -284,7 +284,7 @@ def main():
     parser.add_argument('--num-envs', type=int, default=128)
     parser.add_argument('--total-steps', type=int, default=20000)  # Optimized: was 250K, reduced 92% (CNN slower than MLP)
     parser.add_argument('--save-dir', type=str, default='results/weights/ppo_two_snake_cnn')
-    parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--seed', type=int, default=67)
     args = parser.parse_args()
 
     config = PPOConfig(
