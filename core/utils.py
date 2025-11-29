@@ -325,7 +325,7 @@ class EpsilonScheduler:
 
 class MetricsTracker:
     """
-    Track training metrics (rewards, losses, etc.)
+    Track training metrics (rewards, losses, death causes, etc.)
     """
 
     def __init__(self, window_size: int = 100):
@@ -341,11 +341,29 @@ class MetricsTracker:
         self.episode_scores = []
         self.losses = []
 
-    def add_episode(self, reward: float, length: int, score: int):
-        """Record episode metrics"""
+        # Death cause tracking (per episode for cumulative plots)
+        self.wall_deaths_per_episode = []
+        self.self_deaths_per_episode = []
+        self.timeouts_per_episode = []
+
+    def add_episode(self, reward: float, length: int, score: int, death_cause: str = 'timeout'):
+        """
+        Record episode metrics including death cause
+
+        Args:
+            reward: Total episode reward
+            length: Episode length in steps
+            score: Food items eaten
+            death_cause: 'wall', 'self', or 'timeout'
+        """
         self.episode_rewards.append(reward)
         self.episode_lengths.append(length)
         self.episode_scores.append(score)
+
+        # Track death cause (one-hot style for cumulative plotting)
+        self.wall_deaths_per_episode.append(1 if death_cause == 'wall' else 0)
+        self.self_deaths_per_episode.append(1 if death_cause == 'self' else 0)
+        self.timeouts_per_episode.append(1 if death_cause == 'timeout' else 0)
 
     def add_loss(self, loss: float):
         """Record training loss"""
@@ -374,6 +392,40 @@ class MetricsTracker:
             stats['avg_loss'] = np.mean(recent_losses)
 
         return stats
+
+    def get_death_stats(self) -> dict:
+        """Get death cause statistics"""
+        total = len(self.episode_rewards)
+        if total == 0:
+            return {
+                'wall_deaths': 0,
+                'self_deaths': 0,
+                'timeouts': 0,
+                'wall_death_rate': 0.0,
+                'self_death_rate': 0.0,
+                'timeout_rate': 0.0,
+            }
+
+        wall_deaths = sum(self.wall_deaths_per_episode)
+        self_deaths = sum(self.self_deaths_per_episode)
+        timeouts = sum(self.timeouts_per_episode)
+
+        return {
+            'wall_deaths': wall_deaths,
+            'self_deaths': self_deaths,
+            'timeouts': timeouts,
+            'wall_death_rate': wall_deaths / total,
+            'self_death_rate': self_deaths / total,
+            'timeout_rate': timeouts / total,
+        }
+
+    def get_cumulative_deaths(self) -> dict:
+        """Get cumulative death counts for plotting"""
+        return {
+            'wall_cumulative': np.cumsum(self.wall_deaths_per_episode),
+            'self_cumulative': np.cumsum(self.self_deaths_per_episode),
+            'timeout_cumulative': np.cumsum(self.timeouts_per_episode),
+        }
 
     def save_to_csv(self, filepath: str):
         """Save metrics to CSV file"""

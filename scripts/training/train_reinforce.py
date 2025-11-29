@@ -286,11 +286,20 @@ class REINFORCETrainer:
                 if dones.any():
                     done_indices = torch.where(dones)[0]
                     for idx in done_indices:
+                        # Determine death cause
+                        if info['wall_deaths'][idx].item():
+                            death_cause = 'wall'
+                        elif info['self_deaths'][idx].item():
+                            death_cause = 'self'
+                        else:
+                            death_cause = 'timeout'
+
                         # Record episode
                         self.metrics.add_episode(
                             episode_rewards[idx].item(),
                             episode_lengths[idx].item(),
-                            info['scores'][idx].item()
+                            info['scores'][idx].item(),
+                            death_cause
                         )
 
                         self.episode += 1

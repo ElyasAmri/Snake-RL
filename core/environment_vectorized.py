@@ -297,7 +297,10 @@ class VectorizedSnakeEnv:
         info = {
             'scores': self.scores.clone(),
             'steps': self.steps.clone(),
-            'snake_lengths': self.snake_lengths.clone()
+            'snake_lengths': self.snake_lengths.clone(),
+            'wall_deaths': wall_collision.clone(),
+            'self_deaths': self_collision.clone(),
+            'timeouts': truncated.clone()
         }
 
         # Auto-reset done environments

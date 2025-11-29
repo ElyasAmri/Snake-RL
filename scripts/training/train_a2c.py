@@ -231,10 +231,19 @@ class A2CTrainer:
                 # Handle episode completion
                 for i in range(self.num_envs):
                     if dones[i]:
+                        # Determine death cause
+                        if info['wall_deaths'][i].item():
+                            death_cause = 'wall'
+                        elif info['self_deaths'][i].item():
+                            death_cause = 'self'
+                        else:
+                            death_cause = 'timeout'
+
                         self.metrics.add_episode(
                             reward=episode_rewards[i].item(),
                             length=int(episode_lengths[i].item()),
-                            score=int(info['scores'][i].item())
+                            score=int(info['scores'][i].item()),
+                            death_cause=death_cause
                         )
                         episode_rewards[i] = 0
                         episode_lengths[i] = 0
