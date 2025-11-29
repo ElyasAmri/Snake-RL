@@ -389,13 +389,17 @@ class MetricsTracker:
                 writer.writerow([i + 1, reward, length, score])
 
 
-def set_seed(seed: int):
+def set_seed(seed: int, strict_determinism: bool = False):
     """
     Set random seeds for reproducibility
 
     Args:
         seed: Random seed value
+        strict_determinism: If True, enable strict deterministic mode
+                           (may raise errors for non-deterministic ops)
     """
+    import os
+
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -404,6 +408,10 @@ def set_seed(seed: int):
         torch.cuda.manual_seed_all(seed)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
+
+    if strict_determinism:
+        torch.use_deterministic_algorithms(True)
+        os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
 
 
 def get_device() -> torch.device:
