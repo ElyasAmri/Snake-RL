@@ -332,16 +332,24 @@ class VectorizedSnakeEnv:
             return new_directions
 
     def _check_self_collision(self, new_heads: torch.Tensor) -> torch.Tensor:
-        """Check if new heads collide with snake bodies"""
-        collisions = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        """Check if new heads collide with snake bodies (vectorized)"""
+        # Expand heads for broadcasting: (num_envs, 1, 2)
+        heads_expanded = new_heads.unsqueeze(1)
 
-        for i in range(self.num_envs):
-            snake_body = self.snakes[i, :self.snake_lengths[i]]
-            head = new_heads[i]
+        # Compare against all body positions: (num_envs, max_length, 2)
+        # Result: (num_envs, max_length, 2) -> check both x and y match
+        matches = (self.snakes == heads_expanded).all(dim=2)  # (num_envs, max_length)
 
-            # Check if head matches any body segment
-            matches = (snake_body == head).all(dim=1)
-            collisions[i] = matches.any()
+        # Create mask for valid body segments (within snake_lengths)
+        max_length = self.snakes.shape[1]
+        position_indices = torch.arange(max_length, device=self.device).unsqueeze(0)
+        valid_mask = position_indices < self.snake_lengths.unsqueeze(1)
+
+        # Only count collisions with valid body segments
+        valid_matches = matches & valid_mask
+
+        # Any match means collision
+        collisions = valid_matches.any(dim=1)
 
         return collisions
 
@@ -351,24 +359,30 @@ class VectorizedSnakeEnv:
         food_eaten: torch.Tensor,
         terminated: torch.Tensor
     ):
-        """Update snake positions"""
-        for i in range(self.num_envs):
-            if terminated[i]:
-                continue
+        """Update snake positions (partially vectorized)"""
+        # Mask for active (non-terminated) environments
+        active = ~terminated
 
-            # Shift body forward
-            length = self.snake_lengths[i]
+        # Shift bodies: roll right by 1, then set head
+        # Use roll to shift all positions right (avoiding clone per environment)
+        shifted = torch.roll(self.snakes, shifts=1, dims=1)
+
+        # Update snakes for active environments
+        active_indices = torch.where(active)[0]
+        for i in active_indices.tolist():
+            length = self.snake_lengths[i].item()
+
             if food_eaten[i]:
-                # Grow snake - don't remove tail
-                self.snakes[i, 1:length+1] = self.snakes[i, :length].clone()
+                # Grow snake - copy from rolled version
+                self.snakes[i, 1:length+1] = shifted[i, 1:length+1]
                 self.snake_lengths[i] += 1
                 self.scores[i] += 1
 
                 # Spawn new food
                 self._spawn_food_single(i)
             else:
-                # Move snake - remove tail
-                self.snakes[i, 1:length] = self.snakes[i, :length-1].clone()
+                # Move snake - copy from rolled version (excluding tail)
+                self.snakes[i, 1:length] = shifted[i, 1:length]
 
             # Set new head
             self.snakes[i, 0] = new_heads[i]

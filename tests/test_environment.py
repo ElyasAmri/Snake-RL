@@ -91,6 +91,7 @@ class TestSnakeEnv:
         from scripts.baselines.shortest_path import ShortestPathAgent
         agent = ShortestPathAgent(action_space_type='absolute')
 
+        food_eaten = False
         for _ in range(100):
             action = agent.get_action(env)
             obs, reward, terminated, truncated, info = env.step(action)
@@ -98,7 +99,10 @@ class TestSnakeEnv:
             if env.score > initial_score:
                 # Food was eaten
                 assert len(env.snake) > initial_length
+                food_eaten = True
                 break
+
+        assert food_eaten, "A* agent should have eaten food within 100 steps"
 
     def test_feature_observation_shape(self):
         """Test feature observation has correct shape"""

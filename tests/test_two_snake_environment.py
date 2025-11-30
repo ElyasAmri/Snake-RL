@@ -171,16 +171,16 @@ class TestTwoSnakeCollisions:
         env.reset(seed=42)
 
         # Move snake1 repeatedly in one direction until wall collision
-        done = False
+        collision_occurred = False
         for _ in range(20):
             _, rewards, terminated, _, _ = env.step({'agent1': 0, 'agent2': 1})
             if not env.snake1_alive:
-                done = True
+                collision_occurred = True
                 assert rewards['agent1'] == -100.0
                 break
 
-        # Should have hit wall eventually
-        # (This is probabilistic, but with fixed seed should be deterministic)
+        # With seed 42, collision should occur within 20 steps
+        assert collision_occurred, "Snake should have hit wall within 20 steps with seed 42"
 
     def test_self_collision_terminates_snake(self):
         """Test that self-collision terminates the snake"""
@@ -248,10 +248,10 @@ class TestTwoSnakeWinConditions:
         env = TwoSnakeCompetitiveEnv()
         env.reset()
 
-        # This is hard to force, but we can check the logic
-        # by checking winner returns 0 for draw
-        if not env.snake1_alive and not env.snake2_alive:
-            assert env._get_winner() == 0
+        # Manually set both snakes as dead to test draw logic
+        env.snake1_alive = False
+        env.snake2_alive = False
+        assert env._get_winner() == 0, "Both dead should result in draw (winner=0)"
 
 
 class TestTwoSnakeFoodConsumption:
