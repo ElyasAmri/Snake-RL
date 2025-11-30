@@ -1,112 +1,177 @@
-"""Test enhanced features implementation"""
+"""
+Test enhanced features implementation
+
+Tests for VectorizedSnakeEnv and FeatureEncoder with enhanced features.
+"""
+import pytest
 import torch
+import numpy as np
 from core.environment_vectorized import VectorizedSnakeEnv
 from core.state_representations import FeatureEncoder
 
-def test_vectorized_env():
+
+class TestVectorizedEnvEnhancedFeatures:
     """Test VectorizedSnakeEnv with enhanced features"""
-    print('Testing VectorizedSnakeEnv with enhanced features...')
 
-    env = VectorizedSnakeEnv(
-        num_envs=8,
-        grid_size=10,
-        use_flood_fill=True,
-        use_enhanced_features=True
-    )
+    def test_enhanced_features_shape(self):
+        """Test that enhanced features produce correct observation shape"""
+        env = VectorizedSnakeEnv(
+            num_envs=8,
+            grid_size=10,
+            use_flood_fill=True,
+            use_enhanced_features=True
+        )
 
-    obs = env.reset()
-    print(f'Initial observation shape: {obs.shape}')
-    assert obs.shape == (8, 23), f"Expected shape (8, 23), got {obs.shape}"
+        obs = env.reset()
+        assert obs.shape == (8, 23), f"Expected shape (8, 23), got {obs.shape}"
 
-    # Run a few steps
-    for i in range(10):
-        actions = torch.randint(0, 3, (env.num_envs,), device=env.device)
-        obs, rewards, dones, info = env.step(actions)
-        print(f'Step {i+1}: obs_shape={obs.shape}, dones={dones.sum().item()}/{env.num_envs}')
+    def test_step_maintains_shape(self):
+        """Test that shape is maintained through multiple steps"""
+        env = VectorizedSnakeEnv(
+            num_envs=8,
+            grid_size=10,
+            use_flood_fill=True,
+            use_enhanced_features=True
+        )
 
-    print('\nChecking feature ranges:')
-    print(f'  Min value: {obs.min().item():.4f}')
-    print(f'  Max value: {obs.max().item():.4f}')
-    print(f'  Mean value: {obs.mean().item():.4f}')
+        obs = env.reset()
+        for _ in range(10):
+            actions = torch.randint(0, 3, (env.num_envs,), device=env.device)
+            obs, rewards, dones, info = env.step(actions)
+            assert obs.shape == (8, 23), f"Expected shape (8, 23) after step, got {obs.shape}"
 
-    print('VectorizedSnakeEnv test passed!\n')
+    def test_feature_value_ranges(self):
+        """Test that all features are in valid range [0, 1]"""
+        env = VectorizedSnakeEnv(
+            num_envs=16,
+            grid_size=10,
+            use_flood_fill=True,
+            use_enhanced_features=True
+        )
+
+        obs = env.reset()
+        for _ in range(20):
+            actions = torch.randint(0, 3, (env.num_envs,), device=env.device)
+            obs, _, _, _ = env.step(actions)
+
+            assert obs.min().item() >= 0.0, f"Feature values should be >= 0, got min {obs.min().item()}"
+            assert obs.max().item() <= 1.0, f"Feature values should be <= 1, got max {obs.max().item()}"
 
 
-def test_feature_encoder():
+class TestFeatureEncoderEnhanced:
     """Test FeatureEncoder with enhanced features"""
-    print('Testing FeatureEncoder with enhanced features...')
 
-    encoder = FeatureEncoder(
-        grid_size=10,
-        use_flood_fill=True,
-        use_enhanced_features=True
-    )
+    def test_encoder_output_shape(self):
+        """Test that encoder produces correct output shape"""
+        encoder = FeatureEncoder(
+            grid_size=10,
+            use_flood_fill=True,
+            use_enhanced_features=True
+        )
 
-    # Test case 1: Basic snake
-    snake = [(5, 5), (4, 5), (3, 5)]
-    food = (7, 3)
-    direction = 1  # RIGHT
+        snake = [(5, 5), (4, 5), (3, 5)]
+        food = (7, 3)
+        direction = 1  # RIGHT
 
-    obs = encoder.encode(snake, food, direction)
-    print(f'Observation shape: {obs.shape}')
-    assert obs.shape == (23,), f"Expected shape (23,), got {obs.shape}"
+        obs = encoder.encode(snake, food, direction)
+        assert obs.shape == (23,), f"Expected shape (23,), got {obs.shape}"
 
-    print('Feature breakdown:')
-    print(f'  Danger detection [0-2]: {obs[0:3]}')
-    print(f'  Food direction [3-6]: {obs[3:7]}')
-    print(f'  Current direction [7-9]: {obs[7:10]}')
-    print(f'  Flood-fill [10-12]: {obs[10:13]}')
-    print(f'  Escape routes [13-15]: {obs[13:16]}')
-    print(f'  Tail direction [16-19]: {obs[16:20]}')
-    print(f'  Tail reachability [20]: {obs[20]}')
-    print(f'  Distance to tail [21]: {obs[21]}')
-    print(f'  Snake length ratio [22]: {obs[22]}')
+    def test_feature_breakdown(self):
+        """Test that feature breakdown is correct"""
+        encoder = FeatureEncoder(
+            grid_size=10,
+            use_flood_fill=True,
+            use_enhanced_features=True
+        )
 
-    print('FeatureEncoder test passed!\n')
+        snake = [(5, 5), (4, 5), (3, 5)]
+        food = (7, 3)
+        direction = 1  # RIGHT
+
+        obs = encoder.encode(snake, food, direction)
+
+        # Verify feature dimensions
+        assert len(obs[0:3]) == 3, "Danger detection should have 3 features"
+        assert len(obs[3:7]) == 4, "Food direction should have 4 features"
+        assert len(obs[7:10]) == 3, "Current direction should have 3 features"
+        assert len(obs[10:13]) == 3, "Flood-fill should have 3 features"
+        assert len(obs[13:16]) == 3, "Escape routes should have 3 features"
+        assert len(obs[16:20]) == 4, "Tail direction should have 4 features"
+        # obs[20] = tail reachability
+        # obs[21] = distance to tail
+        # obs[22] = snake length ratio
+
+    def test_all_features_in_valid_range(self):
+        """Test that all encoded features are in [0, 1]"""
+        encoder = FeatureEncoder(
+            grid_size=10,
+            use_flood_fill=True,
+            use_enhanced_features=True
+        )
+
+        snake = [(5, 5), (4, 5), (3, 5)]
+        food = (7, 3)
+        direction = 1
+
+        obs = encoder.encode(snake, food, direction)
+        assert np.all(obs >= 0), "All features should be >= 0"
+        assert np.all(obs <= 1), "All features should be <= 1"
 
 
-def test_compatibility():
-    """Test backward compatibility with flood-fill only and base features"""
-    print('Testing backward compatibility...')
+class TestBackwardCompatibility:
+    """Test backward compatibility with different feature configurations"""
 
-    # Test base features (10-dim)
-    env_base = VectorizedSnakeEnv(
-        num_envs=4,
-        grid_size=10,
-        use_flood_fill=False,
-        use_enhanced_features=False
-    )
-    obs = env_base.reset()
-    assert obs.shape == (4, 10), f"Expected (4, 10), got {obs.shape}"
-    print(f'Base features: shape={obs.shape} [OK]')
+    def test_base_features_shape(self):
+        """Test base features (10-dim)"""
+        env = VectorizedSnakeEnv(
+            num_envs=4,
+            grid_size=10,
+            use_flood_fill=False,
+            use_enhanced_features=False
+        )
+        obs = env.reset()
+        assert obs.shape == (4, 10), f"Expected (4, 10), got {obs.shape}"
 
-    # Test flood-fill only (13-dim)
-    env_flood = VectorizedSnakeEnv(
-        num_envs=4,
-        grid_size=10,
-        use_flood_fill=True,
-        use_enhanced_features=False
-    )
-    obs = env_flood.reset()
-    assert obs.shape == (4, 13), f"Expected (4, 13), got {obs.shape}"
-    print(f'Flood-fill features: shape={obs.shape} [OK]')
+    def test_flood_fill_features_shape(self):
+        """Test flood-fill features (13-dim)"""
+        env = VectorizedSnakeEnv(
+            num_envs=4,
+            grid_size=10,
+            use_flood_fill=True,
+            use_enhanced_features=False
+        )
+        obs = env.reset()
+        assert obs.shape == (4, 13), f"Expected (4, 13), got {obs.shape}"
 
-    # Test all features (23-dim)
-    env_all = VectorizedSnakeEnv(
-        num_envs=4,
-        grid_size=10,
-        use_flood_fill=True,
-        use_enhanced_features=True
-    )
-    obs = env_all.reset()
-    assert obs.shape == (4, 23), f"Expected (4, 23), got {obs.shape}"
-    print(f'All features: shape={obs.shape} [OK]')
+    def test_all_features_shape(self):
+        """Test all features enabled (23-dim)"""
+        env = VectorizedSnakeEnv(
+            num_envs=4,
+            grid_size=10,
+            use_flood_fill=True,
+            use_enhanced_features=True
+        )
+        obs = env.reset()
+        assert obs.shape == (4, 23), f"Expected (4, 23), got {obs.shape}"
 
-    print('Backward compatibility test passed!\n')
+    def test_encoder_base_features(self):
+        """Test encoder with base features only"""
+        encoder = FeatureEncoder(grid_size=10, use_flood_fill=False, use_enhanced_features=False)
+        snake = [(5, 5), (4, 5), (3, 5)]
+        food = (7, 3)
+        direction = 1
+        obs = encoder.encode(snake, food, direction)
+        assert obs.shape == (10,), f"Expected (10,), got {obs.shape}"
+
+    def test_encoder_flood_fill_features(self):
+        """Test encoder with flood-fill features"""
+        encoder = FeatureEncoder(grid_size=10, use_flood_fill=True, use_enhanced_features=False)
+        snake = [(5, 5), (4, 5), (3, 5)]
+        food = (7, 3)
+        direction = 1
+        obs = encoder.encode(snake, food, direction)
+        assert obs.shape == (13,), f"Expected (13,), got {obs.shape}"
 
 
 if __name__ == '__main__':
-    test_feature_encoder()
-    test_vectorized_env()
-    test_compatibility()
-    print('All tests passed successfully!')
+    pytest.main([__file__, '-v'])

@@ -392,7 +392,9 @@ class TwoSnakeCompetitiveEnv(gym.Env):
                     empty_positions.append(pos)
 
         if empty_positions:
-            self.food_position = empty_positions[np.random.randint(len(empty_positions))]
+            # Use seeded RNG from gymnasium for reproducibility
+            idx = self.np_random.integers(len(empty_positions)) if hasattr(self, 'np_random') and self.np_random is not None else np.random.randint(len(empty_positions))
+            self.food_position = empty_positions[idx]
         else:
             # Grid full - no empty positions (edge case)
             self.food_position = None

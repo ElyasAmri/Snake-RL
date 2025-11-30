@@ -98,11 +98,11 @@ class SumTree:
         self.n_entries = 0
 
     def _propagate(self, idx: int, change: float):
-        """Propagate priority change up the tree"""
-        parent = (idx - 1) // 2
-        self.tree[parent] += change
-        if parent != 0:
-            self._propagate(parent, change)
+        """Propagate priority change up the tree (iterative to avoid stack overflow)"""
+        while idx != 0:
+            parent = (idx - 1) // 2
+            self.tree[parent] += change
+            idx = parent
 
     def _retrieve(self, idx: int, s: float) -> int:
         """Retrieve leaf index for priority value s"""

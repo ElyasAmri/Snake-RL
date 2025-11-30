@@ -8,6 +8,7 @@ Provides different state encoders for the Snake environment:
 """
 
 import numpy as np
+from collections import deque
 from typing import Tuple, List
 
 
@@ -209,13 +210,13 @@ class FeatureEncoder:
         Returns:
             Normalized free space (0-1), where 1 = entire grid accessible
         """
-        # BFS flood-fill
+        # BFS flood-fill using deque for O(1) popleft
         visited = set()
-        queue = [start_pos]
+        queue = deque([start_pos])
         visited.add(start_pos)
 
         while queue:
-            current = queue.pop(0)
+            current = queue.popleft()
             x, y = current
 
             # Check all 4 neighbors (UP, RIGHT, DOWN, LEFT)
@@ -378,13 +379,13 @@ class FeatureEncoder:
         # Create snake set without tail (tail will move away)
         snake_set = set(snake[:-1])
 
-        # BFS to check if tail is reachable
+        # BFS to check if tail is reachable using deque for O(1) popleft
         visited = set()
-        queue = [head]
+        queue = deque([head])
         visited.add(head)
 
         while queue:
-            current = queue.pop(0)
+            current = queue.popleft()
             if current == tail:
                 return 1.0  # Tail is reachable
 

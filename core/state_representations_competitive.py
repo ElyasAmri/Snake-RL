@@ -9,6 +9,7 @@ Provides 33-dimensional feature vector for competitive Snake gameplay:
 
 import torch
 import time
+from collections import deque
 from typing import Tuple
 
 
@@ -411,8 +412,9 @@ class CompetitiveFeatureEncoder:
         Returns: Number of reachable cells
         """
         visited = set()
-        queue = [tuple(start_pos.cpu().numpy())]
-        visited.add(queue[0])
+        start = tuple(start_pos.cpu().numpy())
+        queue = deque([start])
+        visited.add(start)
 
         # Create obstacle set (both snakes)
         obstacles = set()
@@ -424,7 +426,7 @@ class CompetitiveFeatureEncoder:
             obstacles.add(pos)
 
         while queue:
-            current = queue.pop(0)
+            current = queue.popleft()
             x, y = current
 
             # Check all 4 neighbors
@@ -570,25 +572,24 @@ class CompetitiveFeatureEncoder:
         reachable = torch.zeros(batch_size, dtype=torch.float32, device=self.device)
 
         for b in range(batch_size):
-            # Perform flood-fill from self head
+            # Perform flood-fill from self head using deque for O(1) popleft
             visited = set()
-            queue = [tuple(head_self[b].cpu().numpy())]
-            visited.add(queue[0])
+            start = tuple(head_self[b].cpu().numpy())
+            queue = deque([start])
+            visited.add(start)
 
-            # Create obstacle set
+            # Create obstacle set - exclude heads (self head is start, opponent head is target)
             obstacles = set()
-            for i in range(length_self[b].item()):
-                if i > 0:  # Exclude head
-                    obstacles.add(tuple(snake_self[b, i].cpu().numpy()))
-            for i in range(length_opponent[b].item()):
-                if i > 0:  # Exclude opponent head (we want to reach it)
-                    obstacles.add(tuple(snake_opponent[b, i].cpu().numpy()))
+            for i in range(1, length_self[b].item()):  # Skip index 0 (self head)
+                obstacles.add(tuple(snake_self[b, i].cpu().numpy()))
+            for i in range(1, length_opponent[b].item()):  # Skip index 0 (opponent head - target)
+                obstacles.add(tuple(snake_opponent[b, i].cpu().numpy()))
 
             target = tuple(head_opponent[b].cpu().numpy())
             found = False
 
             while queue and not found:
-                current = queue.pop(0)
+                current = queue.popleft()
 
                 if current == target:
                     found = True

@@ -119,7 +119,7 @@ def run_verification(
 
     # 2. Test network initialization
     set_seed(seed, strict_determinism=strict_determinism)
-    model = DQN_MLP(input_dim=11, output_dim=3, hidden_dims=(128, 128)).to(device)
+    model = DQN_MLP(input_dim=10, output_dim=3, hidden_dims=(128, 128)).to(device)
 
     weight_hashes = {}
     weight_sums = {}
@@ -132,7 +132,7 @@ def run_verification(
 
     # Sample forward pass
     set_seed(seed, strict_determinism=strict_determinism)
-    dummy_input = torch.rand(32, 11, device=device)
+    dummy_input = torch.rand(32, 10, device=device)
     with torch.no_grad():
         output = model(dummy_input)
 
@@ -186,7 +186,7 @@ def run_verification(
 
     # 5. Test gradient computation
     set_seed(seed, strict_determinism=strict_determinism)
-    dummy_obs = torch.rand(32, 11, device=device)
+    dummy_obs = torch.rand(32, 10, device=device)
     dummy_target = torch.rand(32, 3, device=device)
 
     model.zero_grad()
