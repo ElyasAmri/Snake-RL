@@ -14,13 +14,13 @@ class TestSnakeEnv:
         """Test environment initialization with absolute actions"""
         env = SnakeEnv(grid_size=10, action_space_type='absolute', state_representation='feature')
         assert env.action_space.n == 4
-        assert env.observation_space.shape == (11,)
+        assert env.observation_space.shape == (10,)
 
     def test_initialization_relative(self):
         """Test environment initialization with relative actions"""
         env = SnakeEnv(grid_size=10, action_space_type='relative', state_representation='feature')
         assert env.action_space.n == 3
-        assert env.observation_space.shape == (11,)
+        assert env.observation_space.shape == (10,)
 
     def test_initialization_grid(self):
         """Test environment initialization with grid representation"""
@@ -105,7 +105,7 @@ class TestSnakeEnv:
         env = SnakeEnv(grid_size=10, state_representation='feature', seed=67)
         obs, info = env.reset(seed=67)
 
-        assert obs.shape == (11,)
+        assert obs.shape == (10,)
         assert np.all((obs >= 0) & (obs <= 1))
 
     def test_grid_observation_shape(self):

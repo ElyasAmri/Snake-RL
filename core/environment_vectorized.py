@@ -90,15 +90,15 @@ class VectorizedSnakeEnv:
         if state_representation == 'feature':
             # Feature hierarchy (mutually exclusive modes)
             if use_enhanced_features:
-                feature_dim = 24  # 11 base + 3 flood-fill + 10 enhanced
+                feature_dim = 23  # 10 base + 3 flood-fill + 10 enhanced
                 use_flood_fill = True  # Enhanced requires flood-fill
             elif use_selective_features:
-                feature_dim = 19  # 11 base + 3 flood-fill + 5 selective (tail features only)
+                feature_dim = 18  # 10 base + 3 flood-fill + 5 selective (tail features only)
                 use_flood_fill = True  # Selective requires flood-fill
             elif use_flood_fill:
-                feature_dim = 14  # 11 base + 3 flood-fill
+                feature_dim = 13  # 10 base + 3 flood-fill
             else:
-                feature_dim = 11  # Base features only
+                feature_dim = 10  # Base features only
 
             self.observation_space = spaces.Box(
                 low=0, high=1, shape=(num_envs, feature_dim), dtype=np.float32
@@ -451,13 +451,13 @@ class VectorizedSnakeEnv:
         Returns:
             (num_envs, feature_dim) tensor
         """
-        feature_dim = 11
+        feature_dim = 10
         if self.use_flood_fill:
-            feature_dim = 14
+            feature_dim = 13
         if self.use_selective_features:
-            feature_dim = 19  # Selective: tail features only
+            feature_dim = 18  # Selective: tail features only
         if self.use_enhanced_features:
-            feature_dim = 24  # All enhanced features
+            feature_dim = 23  # All enhanced features
         obs = torch.zeros(
             (self.num_envs, feature_dim),
             dtype=torch.float32,
@@ -473,8 +473,8 @@ class VectorizedSnakeEnv:
 
         heads = self.snakes[torch.arange(self.num_envs), 0]
 
-        # Danger detection (4 features)
-        for offset, col in zip([0, -1, 1, 2], range(4)):
+        # Danger detection (3 features: straight, left, right)
+        for offset, col in zip([0, -1, 1], range(3)):
             check_dirs = (self.directions + offset) % 4
             check_deltas = deltas[check_dirs]
             next_pos = heads + check_deltas
@@ -493,19 +493,19 @@ class VectorizedSnakeEnv:
             obs[:, col] = (wall_danger | body_danger).float()
 
         # Food direction (4 features)
-        obs[:, 4] = (self.foods[:, 1] < heads[:, 1]).float()  # UP
-        obs[:, 5] = (self.foods[:, 0] > heads[:, 0]).float()  # RIGHT
-        obs[:, 6] = (self.foods[:, 1] > heads[:, 1]).float()  # DOWN
-        obs[:, 7] = (self.foods[:, 0] < heads[:, 0]).float()  # LEFT
+        obs[:, 3] = (self.foods[:, 1] < heads[:, 1]).float()  # UP
+        obs[:, 4] = (self.foods[:, 0] > heads[:, 0]).float()  # RIGHT
+        obs[:, 5] = (self.foods[:, 1] > heads[:, 1]).float()  # DOWN
+        obs[:, 6] = (self.foods[:, 0] < heads[:, 0]).float()  # LEFT
 
         # Current direction (3 features - one-hot)
         for i in range(3):
-            obs[:, 8 + i] = (self.directions == i).float()
+            obs[:, 7 + i] = (self.directions == i).float()
 
         # Add flood-fill features if enabled
         if self.use_flood_fill:
             # Compute flood-fill for straight, right, and left directions
-            for offset, col in zip([0, 1, -1], [11, 12, 13]):
+            for offset, col in zip([0, 1, -1], [10, 11, 12]):
                 check_dirs = (self.directions + offset) % 4
                 check_deltas = deltas[check_dirs]
                 next_pos = heads + check_deltas
@@ -527,28 +527,28 @@ class VectorizedSnakeEnv:
         # Add selective features (tail features only - highest impact)
         if self.use_selective_features:
             # Selective mode: Only tail features (5 features)
-            # [14-17]: Tail direction (up, right, down, left)
-            # [18]: Tail reachability (most important!)
+            # [13-16]: Tail direction (up, right, down, left)
+            # [17]: Tail reachability (most important!)
 
             # Tail direction (4 features)
             tail_directions = self._compute_tail_direction_vectorized()
-            obs[:, 14:18] = tail_directions
+            obs[:, 13:17] = tail_directions
 
             # Tail reachability (1 feature - HIGH IMPACT)
             tail_reachability = self._compute_tail_reachability_vectorized()
-            obs[:, 18] = tail_reachability
+            obs[:, 17] = tail_reachability
 
         # Add all enhanced features if enabled
         elif self.use_enhanced_features:
             # Compute enhanced features (10 features total)
-            # [14-16]: Escape routes (straight, right, left)
-            # [17-20]: Tail direction (up, right, down, left)
-            # [21]: Tail reachability
-            # [22]: Distance to tail
-            # [23]: Snake length ratio
+            # [13-15]: Escape routes (straight, right, left)
+            # [16-19]: Tail direction (up, right, down, left)
+            # [20]: Tail reachability
+            # [21]: Distance to tail
+            # [22]: Snake length ratio
 
             # 1. Escape route detection (3 features)
-            for offset, col in zip([0, 1, -1], [14, 15, 16]):
+            for offset, col in zip([0, 1, -1], [13, 14, 15]):
                 check_dirs = (self.directions + offset) % 4
                 check_deltas = deltas[check_dirs]
                 next_pos = heads + check_deltas
@@ -559,19 +559,19 @@ class VectorizedSnakeEnv:
 
             # 2. Tail direction (4 features)
             tail_directions = self._compute_tail_direction_vectorized()
-            obs[:, 17:21] = tail_directions
+            obs[:, 16:20] = tail_directions
 
             # 3. Tail reachability (1 feature)
             tail_reachability = self._compute_tail_reachability_vectorized()
-            obs[:, 21] = tail_reachability
+            obs[:, 20] = tail_reachability
 
             # 4. Distance to tail (1 feature, normalized)
             distance_to_tail = self._compute_distance_to_tail_vectorized()
-            obs[:, 22] = distance_to_tail
+            obs[:, 21] = distance_to_tail
 
             # 5. Snake length ratio (1 feature)
             max_length = self.grid_size * self.grid_size
-            obs[:, 23] = self.snake_lengths.float() / max_length
+            obs[:, 22] = self.snake_lengths.float() / max_length
 
         return obs
 

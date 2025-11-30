@@ -16,13 +16,11 @@ import io
 
 
 # Feature names for each mode
-# Note: Index 3 (Danger: Back) is always 1 (body behind head), so we skip it in display
 FEATURE_NAMES = {
     'basic': [
         'Danger: Straight',
         'Danger: Left',
         'Danger: Right',
-        '(skip)',  # Danger: Back - always 1
         'Food: Up',
         'Food: Right',
         'Food: Down',
@@ -35,7 +33,6 @@ FEATURE_NAMES = {
         'Danger: Straight',
         'Danger: Left',
         'Danger: Right',
-        '(skip)',  # Danger: Back - always 1
         'Food: Up',
         'Food: Right',
         'Food: Down',
@@ -51,7 +48,6 @@ FEATURE_NAMES = {
         'Danger: Straight',
         'Danger: Left',
         'Danger: Right',
-        '(skip)',  # Danger: Back - always 1
         'Food: Up',
         'Food: Right',
         'Food: Down',
@@ -72,7 +68,6 @@ FEATURE_NAMES = {
         'Danger: Straight',
         'Danger: Left',
         'Danger: Right',
-        '(skip)',  # Danger: Back - always 1
         'Food: Up',
         'Food: Right',
         'Food: Down',
@@ -95,9 +90,6 @@ FEATURE_NAMES = {
         'Snake: Length Ratio'
     ]
 }
-
-# Indices to skip in feature panel display (always constant values)
-SKIP_INDICES = {3}  # Danger: Back is always 1
 
 
 class FeatureVisualizer:
@@ -142,7 +134,7 @@ class FeatureVisualizer:
         Create gradient overlay showing danger in each direction.
 
         Args:
-            features: Feature vector (danger features are indices 0-3)
+            features: Feature vector (danger features are indices 0-2)
             head_pos: (x, y) position of snake head
             direction: Current direction (0=UP, 1=RIGHT, 2=DOWN, 3=LEFT)
 
@@ -151,11 +143,10 @@ class FeatureVisualizer:
         """
         overlay = np.zeros((self.game_area_size, self.game_area_size, 4), dtype=np.uint8)
 
-        # Danger values: straight, left, right, back (indices 0-3)
+        # Danger values: straight, left, right (indices 0-2)
         danger_straight = features[0] if len(features) > 0 else 0
         danger_left = features[1] if len(features) > 1 else 0
         danger_right = features[2] if len(features) > 2 else 0
-        danger_back = features[3] if len(features) > 3 else 0
 
         # Direction deltas: UP, RIGHT, DOWN, LEFT
         deltas = [(0, -1), (1, 0), (0, 1), (-1, 0)]
@@ -164,13 +155,11 @@ class FeatureVisualizer:
         straight_dir = direction
         left_dir = (direction - 1) % 4
         right_dir = (direction + 1) % 4
-        back_dir = (direction + 2) % 4
 
         dangers = [
             (straight_dir, danger_straight),
             (left_dir, danger_left),
-            (right_dir, danger_right),
-            (back_dir, danger_back)
+            (right_dir, danger_right)
         ]
 
         hx, hy = head_pos
@@ -194,7 +183,7 @@ class FeatureVisualizer:
         Create gradient overlay showing flood-fill values.
 
         Args:
-            features: Feature vector (flood-fill at indices 11-13 for flood-fill mode)
+            features: Feature vector (flood-fill at indices 10-12 for flood-fill mode)
             head_pos: (x, y) position of snake head
             direction: Current direction
 
@@ -204,13 +193,13 @@ class FeatureVisualizer:
         overlay = np.zeros((self.game_area_size, self.game_area_size, 4), dtype=np.uint8)
 
         # Check if flood-fill features exist
-        if len(features) < 14:
+        if len(features) < 13:
             return overlay
 
-        # Flood-fill values: straight, right, left (indices 11-13)
-        ff_straight = features[11]
-        ff_right = features[12]
-        ff_left = features[13]
+        # Flood-fill values: straight, right, left (indices 10-12)
+        ff_straight = features[10]
+        ff_right = features[11]
+        ff_left = features[12]
 
         # Direction deltas
         deltas = [(0, -1), (1, 0), (0, 1), (-1, 0)]
@@ -335,51 +324,45 @@ class FeatureVisualizer:
             RGB image (H, W, 3)
         """
         # Get feature names
-        all_names = FEATURE_NAMES.get(feature_mode, FEATURE_NAMES['basic'])
-        n_all = min(len(features), len(all_names))
-
-        # Filter out skipped features (like Danger: Back which is always 1)
-        display_indices = [i for i in range(n_all) if i not in SKIP_INDICES]
-        names = [all_names[i] for i in display_indices]
-        display_features = [features[i] for i in display_indices]
-        n_features = len(display_indices)
+        names = FEATURE_NAMES.get(feature_mode, FEATURE_NAMES['basic'])
+        n_features = min(len(features), len(names))
 
         # Create figure
         fig = Figure(figsize=(width/100, height/100), dpi=100, facecolor='#1a1a1a')
         ax = fig.add_subplot(111)
         ax.set_facecolor('#1a1a1a')
 
-        # Title (show original dimension count)
-        ax.set_title(f'Feature Vector ({n_all}-dim)', color='white', fontsize=14, pad=10)
+        # Title
+        ax.set_title(f'Feature Vector ({n_features}-dim)', color='white', fontsize=14, pad=10)
 
         # Create horizontal bar chart
         y_pos = np.arange(n_features)
         colors = []
 
-        for idx, i in enumerate(display_indices):
+        for i in range(n_features):
             val = features[i]
-            if i < 4:  # Danger features
+            if i < 3:  # Danger features
                 colors.append('#ff5050' if val > 0.5 else '#404040')
-            elif i < 8:  # Food direction
+            elif i < 7:  # Food direction
                 colors.append('#50ff50' if val > 0.5 else '#404040')
-            elif i < 11:  # Direction
+            elif i < 10:  # Direction
                 colors.append('#ffff50' if val > 0.5 else '#404040')
-            elif i < 14:  # Flood-fill
+            elif i < 13:  # Flood-fill
                 colors.append('#5080ff' if val > 0.3 else '#404040')
             else:  # Tail/enhanced features
                 colors.append('#ff8050' if val > 0.3 else '#404040')
 
+        display_features = features[:n_features]
         bars = ax.barh(y_pos, display_features, color=colors, height=0.7)
 
         # Add importance overlay if provided
         if importance is not None:
-            display_importance = [importance[i] for i in display_indices if i < len(importance)]
-            for bar, imp in zip(bars, display_importance):
+            for i, (bar, imp) in enumerate(zip(bars, importance[:n_features])):
                 bar.set_alpha(0.4 + imp * 0.6)
 
         # Labels
         ax.set_yticks(y_pos)
-        ax.set_yticklabels(names, color='white', fontsize=8)
+        ax.set_yticklabels(names[:n_features], color='white', fontsize=8)
         ax.set_xlim(0, 1.1)
         ax.set_xlabel('Value', color='white')
 

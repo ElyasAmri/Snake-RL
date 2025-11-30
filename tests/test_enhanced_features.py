@@ -16,7 +16,7 @@ def test_vectorized_env():
 
     obs = env.reset()
     print(f'Initial observation shape: {obs.shape}')
-    assert obs.shape == (8, 24), f"Expected shape (8, 24), got {obs.shape}"
+    assert obs.shape == (8, 23), f"Expected shape (8, 23), got {obs.shape}"
 
     # Run a few steps
     for i in range(10):
@@ -49,18 +49,18 @@ def test_feature_encoder():
 
     obs = encoder.encode(snake, food, direction)
     print(f'Observation shape: {obs.shape}')
-    assert obs.shape == (24,), f"Expected shape (24,), got {obs.shape}"
+    assert obs.shape == (23,), f"Expected shape (23,), got {obs.shape}"
 
     print('Feature breakdown:')
-    print(f'  Danger detection [0-3]: {obs[0:4]}')
-    print(f'  Food direction [4-7]: {obs[4:8]}')
-    print(f'  Current direction [8-10]: {obs[8:11]}')
-    print(f'  Flood-fill [11-13]: {obs[11:14]}')
-    print(f'  Escape routes [14-16]: {obs[14:17]}')
-    print(f'  Tail direction [17-20]: {obs[17:21]}')
-    print(f'  Tail reachability [21]: {obs[21]}')
-    print(f'  Distance to tail [22]: {obs[22]}')
-    print(f'  Snake length ratio [23]: {obs[23]}')
+    print(f'  Danger detection [0-2]: {obs[0:3]}')
+    print(f'  Food direction [3-6]: {obs[3:7]}')
+    print(f'  Current direction [7-9]: {obs[7:10]}')
+    print(f'  Flood-fill [10-12]: {obs[10:13]}')
+    print(f'  Escape routes [13-15]: {obs[13:16]}')
+    print(f'  Tail direction [16-19]: {obs[16:20]}')
+    print(f'  Tail reachability [20]: {obs[20]}')
+    print(f'  Distance to tail [21]: {obs[21]}')
+    print(f'  Snake length ratio [22]: {obs[22]}')
 
     print('FeatureEncoder test passed!\n')
 
@@ -69,7 +69,7 @@ def test_compatibility():
     """Test backward compatibility with flood-fill only and base features"""
     print('Testing backward compatibility...')
 
-    # Test base features (11-dim)
+    # Test base features (10-dim)
     env_base = VectorizedSnakeEnv(
         num_envs=4,
         grid_size=10,
@@ -77,10 +77,10 @@ def test_compatibility():
         use_enhanced_features=False
     )
     obs = env_base.reset()
-    assert obs.shape == (4, 11), f"Expected (4, 11), got {obs.shape}"
+    assert obs.shape == (4, 10), f"Expected (4, 10), got {obs.shape}"
     print(f'Base features: shape={obs.shape} [OK]')
 
-    # Test flood-fill only (14-dim)
+    # Test flood-fill only (13-dim)
     env_flood = VectorizedSnakeEnv(
         num_envs=4,
         grid_size=10,
@@ -88,10 +88,10 @@ def test_compatibility():
         use_enhanced_features=False
     )
     obs = env_flood.reset()
-    assert obs.shape == (4, 14), f"Expected (4, 14), got {obs.shape}"
+    assert obs.shape == (4, 13), f"Expected (4, 13), got {obs.shape}"
     print(f'Flood-fill features: shape={obs.shape} [OK]')
 
-    # Test all features (24-dim)
+    # Test all features (23-dim)
     env_all = VectorizedSnakeEnv(
         num_envs=4,
         grid_size=10,
@@ -99,7 +99,7 @@ def test_compatibility():
         use_enhanced_features=True
     )
     obs = env_all.reset()
-    assert obs.shape == (4, 24), f"Expected (4, 24), got {obs.shape}"
+    assert obs.shape == (4, 23), f"Expected (4, 23), got {obs.shape}"
     print(f'All features: shape={obs.shape} [OK]')
 
     print('Backward compatibility test passed!\n')

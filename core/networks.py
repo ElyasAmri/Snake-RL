@@ -17,12 +17,12 @@ class DQN_MLP(nn.Module):
     """
     Deep Q-Network with Multi-Layer Perceptron
 
-    For feature-based state representation (11-dimensional input)
+    For feature-based state representation (10-dimensional input)
     """
 
     def __init__(
         self,
-        input_dim: int = 11,
+        input_dim: int = 10,
         output_dim: int = 3,
         hidden_dims: Tuple[int, ...] = (128, 128)
     ):
@@ -135,7 +135,7 @@ class DuelingDQN_MLP(nn.Module):
 
     def __init__(
         self,
-        input_dim: int = 11,
+        input_dim: int = 10,
         output_dim: int = 3,
         hidden_dims: Tuple[int, ...] = (128, 128)
     ):
@@ -278,7 +278,7 @@ class NoisyDQN_MLP(nn.Module):
 
     def __init__(
         self,
-        input_dim: int = 11,
+        input_dim: int = 10,
         output_dim: int = 3,
         hidden_dims: Tuple[int, ...] = (128, 128),
         sigma_init: float = 0.5
@@ -328,7 +328,7 @@ class PPO_Actor_MLP(nn.Module):
 
     def __init__(
         self,
-        input_dim: int = 11,
+        input_dim: int = 10,
         output_dim: int = 3,
         hidden_dims: Tuple[int, ...] = (128, 128)
     ):
@@ -384,7 +384,7 @@ class PPO_Critic_MLP(nn.Module):
 
     def __init__(
         self,
-        input_dim: int = 11,
+        input_dim: int = 10,
         hidden_dims: Tuple[int, ...] = (128, 128)
     ):
         """

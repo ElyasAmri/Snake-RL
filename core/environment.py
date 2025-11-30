@@ -92,9 +92,9 @@ class SnakeEnv(gym.Env):
             self.action_space = spaces.Discrete(3)
 
         if state_representation == 'feature':
-            # 11-dimensional feature vector
+            # 10-dimensional feature vector
             self.observation_space = spaces.Box(
-                low=0, high=1, shape=(11,), dtype=np.float32
+                low=0, high=1, shape=(10,), dtype=np.float32
             )
         else:  # grid
             # Multi-channel grid: [snake_head, snake_body, food]
@@ -288,17 +288,17 @@ class SnakeEnv(gym.Env):
 
     def _get_feature_observation(self) -> np.ndarray:
         """
-        Get 11-dimensional feature vector:
-        [0-3]: Danger straight, left, right, back (binary)
-        [4-7]: Food direction (up, right, down, left) (binary)
-        [8-10]: Current direction (one-hot encoded)
+        Get 10-dimensional feature vector:
+        [0-2]: Danger straight, left, right (binary)
+        [3-6]: Food direction (up, right, down, left) (binary)
+        [7-9]: Current direction (one-hot encoded)
         """
         head_x, head_y = self.snake[0]
 
-        # Danger detection (4 features)
+        # Danger detection (3 features: straight, left, right)
         dangers = []
-        for i in range(4):
-            check_dir = Direction((self.direction + i) % 4)
+        for offset in [0, -1, 1]:  # straight, left, right
+            check_dir = Direction((self.direction + offset) % 4)
             dx, dy = self._direction_to_delta(check_dir)
             next_pos = (head_x + dx, head_y + dy)
 

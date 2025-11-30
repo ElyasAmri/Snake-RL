@@ -2,7 +2,7 @@
 State Representation Encoders
 
 Provides different state encoders for the Snake environment:
-- Feature-based: 11-dimensional feature vector
+- Feature-based: 10-dimensional feature vector
 - Grid-based: Multi-channel grid representation
 - Normalization utilities
 """
@@ -13,29 +13,29 @@ from typing import Tuple, List
 
 class FeatureEncoder:
     """
-    Encodes Snake game state as an 11 or 14-dimensional feature vector
+    Encodes Snake game state as a 10 or 13-dimensional feature vector
 
-    Features (11-dimensional):
-    [0-3]: Danger detection (straight, left, right, back)
-    [4-7]: Food direction (up, right, down, left)
-    [8-10]: Current direction (one-hot, 3 bits for 4 directions)
+    Features (10-dimensional):
+    [0-2]: Danger detection (straight, left, right)
+    [3-6]: Food direction (up, right, down, left)
+    [7-9]: Current direction (one-hot, 3 bits for 4 directions)
 
-    Features (14-dimensional with flood-fill):
-    [0-3]: Danger detection (straight, left, right, back)
-    [4-7]: Food direction (up, right, down, left)
-    [8-10]: Current direction (one-hot, 3 bits for 4 directions)
-    [11-13]: Flood-fill free space (straight, right, left)
+    Features (13-dimensional with flood-fill):
+    [0-2]: Danger detection (straight, left, right)
+    [3-6]: Food direction (up, right, down, left)
+    [7-9]: Current direction (one-hot, 3 bits for 4 directions)
+    [10-12]: Flood-fill free space (straight, right, left)
 
-    Features (21-dimensional with all enhancements):
-    [0-3]: Danger detection (straight, left, right, back)
-    [4-7]: Food direction (up, right, down, left)
-    [8-10]: Current direction (one-hot, 3 bits for 4 directions)
-    [11-13]: Flood-fill free space (straight, right, left)
-    [14-16]: Escape route count (straight, right, left) - number of safe adjacent cells
-    [17-20]: Tail direction (up, right, down, left) - direction to tail
-    [21]: Tail reachability (0-1) - can reach tail via flood-fill
-    [22]: Distance to tail (normalized)
-    [23]: Snake length ratio (current_length / max_length)
+    Features (23-dimensional with all enhancements):
+    [0-2]: Danger detection (straight, left, right)
+    [3-6]: Food direction (up, right, down, left)
+    [7-9]: Current direction (one-hot, 3 bits for 4 directions)
+    [10-12]: Flood-fill free space (straight, right, left)
+    [13-15]: Escape route count (straight, right, left) - number of safe adjacent cells
+    [16-19]: Tail direction (up, right, down, left) - direction to tail
+    [20]: Tail reachability (0-1) - can reach tail via flood-fill
+    [21]: Distance to tail (normalized)
+    [22]: Snake length ratio (current_length / max_length)
     """
 
     def __init__(self, grid_size: int, use_flood_fill: bool = False, use_enhanced_features: bool = False):
@@ -60,14 +60,14 @@ class FeatureEncoder:
             grid_size: Grid size (optional, uses self.grid_size if None)
 
         Returns:
-            11-dimensional feature vector
+            10-dimensional feature vector (or more with flood-fill/enhanced)
         """
         if grid_size is None:
             grid_size = self.grid_size
 
         head_x, head_y = snake[0]
 
-        # Danger detection (4 features: straight, left, right, back)
+        # Danger detection (3 features: straight, left, right)
         direction_deltas = {
             0: (0, -1),  # UP
             1: (1, 0),   # RIGHT
@@ -76,7 +76,7 @@ class FeatureEncoder:
         }
 
         dangers = []
-        for offset in [0, -1, 1, 2]:  # straight, left, right, back
+        for offset in [0, -1, 1]:  # straight, left, right
             check_dir = (direction + offset) % 4
             dx, dy = direction_deltas[check_dir]
             next_pos = (head_x + dx, head_y + dy)

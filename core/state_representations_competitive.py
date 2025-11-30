@@ -1,9 +1,9 @@
 """
 Competitive State Representation Encoder for Two-Snake Environment
 
-Provides 35-dimensional feature vector for competitive Snake gameplay:
-- Self-awareness (14 dims): Danger, food direction, direction, flood-fill
-- Opponent-awareness (15 dims): Opponent danger, head position, direction, metrics
+Provides 33-dimensional feature vector for competitive Snake gameplay:
+- Self-awareness (13 dims): Danger, food direction, direction, flood-fill
+- Opponent-awareness (14 dims): Opponent danger, head position, direction, metrics
 - Competitive metrics (6 dims): Length diff, score diff, food proximity, space control
 """
 
@@ -14,35 +14,35 @@ from typing import Tuple
 
 class CompetitiveFeatureEncoder:
     """
-    Encodes competitive two-snake game state as a 35-dimensional feature vector.
+    Encodes competitive two-snake game state as a 33-dimensional feature vector.
 
     Features are agent-centric: each snake sees the world from its own perspective,
     treating itself as "self" and the other snake as "opponent".
 
-    Feature breakdown (35 dims):
+    Feature breakdown (33 dims):
 
-    Self-awareness (14 dims):
-        [0-3]: Danger from walls/self in 4 directions (straight, left, right, back)
-        [4-7]: Food direction (up, right, down, left)
-        [8-10]: Current direction one-hot (3 bits for 4 directions)
-        [11-13]: Flood-fill free space (straight, right, left)
+    Self-awareness (13 dims):
+        [0-2]: Danger from walls/self in 3 directions (straight, left, right)
+        [3-6]: Food direction (up, right, down, left)
+        [7-9]: Current direction one-hot (3 bits for 4 directions)
+        [10-12]: Flood-fill free space (straight, right, left)
 
-    Opponent-awareness (15 dims):
-        [14-17]: Danger from opponent body in 4 directions (straight, left, right, back)
-        [18-21]: Opponent head position relative (up, right, down, left)
-        [22-24]: Opponent current direction (3 bits)
-        [25]: Opponent length normalized (0-1)
-        [26]: Manhattan distance to opponent head normalized (0-1)
-        [27]: Opponent threat level (0-1) = is_longer + is_closer_to_food
-        [28]: Can reach opponent head via flood-fill (0-1)
+    Opponent-awareness (14 dims):
+        [13-15]: Danger from opponent body in 3 directions (straight, left, right)
+        [16-19]: Opponent head position relative (up, right, down, left)
+        [20-22]: Opponent current direction (3 bits)
+        [23]: Opponent length normalized (0-1)
+        [24]: Manhattan distance to opponent head normalized (0-1)
+        [25]: Opponent threat level (0-1) = is_longer + is_closer_to_food
+        [26]: Can reach opponent head via flood-fill (0-1)
 
     Competitive metrics (6 dims):
-        [29]: Length difference normalized: (len_self - len_opponent) / max_length
-        [30]: Food count difference: (food_self - food_opponent) / target_food
-        [31]: Food proximity advantage: (dist_opponent_food - dist_self_food) / grid_diagonal
-        [32]: Space control: (flood_self - flood_opponent) / total_cells
-        [33]: Steps since last food normalized (0-1)
-        [34]: Round progress: food_self / target_food
+        [27]: Length difference normalized: (len_self - len_opponent) / max_length
+        [28]: Food count difference: (food_self - food_opponent) / target_food
+        [29]: Food proximity advantage: (dist_opponent_food - dist_self_food) / grid_diagonal
+        [30]: Space control: (flood_self - flood_opponent) / total_cells
+        [31]: Steps since last food normalized (0-1)
+        [32]: Round progress: food_self / target_food
     """
 
     def __init__(
@@ -125,10 +125,10 @@ class CompetitiveFeatureEncoder:
             food: (batch, 2) - food positions
 
         Returns:
-            features: (batch, 35) - encoded feature vectors
+            features: (batch, 33) - encoded feature vectors
         """
         batch_size = snake_self.shape[0]
-        features = torch.zeros((batch_size, 35), dtype=torch.float32, device=self.device)
+        features = torch.zeros((batch_size, 33), dtype=torch.float32, device=self.device)
 
         # Profiling: Track feature computation timing (accumulate totals)
         if not hasattr(self, '_encoding_call_count'):
@@ -142,64 +142,64 @@ class CompetitiveFeatureEncoder:
         head_self = snake_self[:, 0, :]  # (batch, 2)
         head_opponent = snake_opponent[:, 0, :]  # (batch, 2)
 
-        # ========== SELF-AWARENESS (14 dims) ==========
+        # ========== SELF-AWARENESS (13 dims) ==========
 
-        # [0-3]: Danger from walls/self in 4 directions
+        # [0-2]: Danger from walls/self in 3 directions
         t0 = time.perf_counter()
-        features[:, 0:4] = self._compute_danger_self(
+        features[:, 0:3] = self._compute_danger_self(
             head_self, snake_self, length_self, direction_self
         )
         self._total_danger_self_time += time.perf_counter() - t0
 
-        # [4-7]: Food direction (up, right, down, left)
+        # [3-6]: Food direction (up, right, down, left)
         t0 = time.perf_counter()
-        features[:, 4:8] = self._compute_food_direction(head_self, food)
+        features[:, 3:7] = self._compute_food_direction(head_self, food)
         self._total_food_dir_time += time.perf_counter() - t0
 
-        # [8-10]: Current direction one-hot
-        features[:, 8:11] = self._encode_direction(direction_self)
+        # [7-9]: Current direction one-hot
+        features[:, 7:10] = self._encode_direction(direction_self)
 
-        # [11-13]: Flood-fill free space (straight, right, left)
+        # [10-12]: Flood-fill free space (straight, right, left)
         if self.use_flood_fill:
-            features[:, 11:14] = self._compute_flood_fill_features(
+            features[:, 10:13] = self._compute_flood_fill_features(
                 head_self, snake_self, length_self, direction_self,
                 snake_opponent, length_opponent
             )
         else:
             # Use simple heuristic: free space = 1.0 - danger
-            features[:, 11:14] = 1.0 - features[:, 0:3]
+            features[:, 10:13] = 1.0 - features[:, 0:3]
 
-        # ========== OPPONENT-AWARENESS (15 dims) ==========
+        # ========== OPPONENT-AWARENESS (14 dims) ==========
 
-        # [14-17]: Danger from opponent body in 4 directions
+        # [13-15]: Danger from opponent body in 3 directions
         t0 = time.perf_counter()
-        features[:, 14:18] = self._compute_danger_opponent(
+        features[:, 13:16] = self._compute_danger_opponent(
             head_self, direction_self, snake_opponent, length_opponent
         )
         self._total_danger_opp_time += time.perf_counter() - t0
 
-        # [18-21]: Opponent head position relative (up, right, down, left)
-        features[:, 18:22] = self._compute_relative_position(head_self, head_opponent)
+        # [16-19]: Opponent head position relative (up, right, down, left)
+        features[:, 16:20] = self._compute_relative_position(head_self, head_opponent)
 
-        # [22-24]: Opponent direction one-hot
-        features[:, 22:25] = self._encode_direction(direction_opponent)
+        # [20-22]: Opponent direction one-hot
+        features[:, 20:23] = self._encode_direction(direction_opponent)
 
-        # [25]: Opponent length normalized
-        features[:, 25] = length_opponent.float() / self.max_length
+        # [23]: Opponent length normalized
+        features[:, 23] = length_opponent.float() / self.max_length
 
-        # [26]: Manhattan distance to opponent head normalized
-        features[:, 26] = self._compute_manhattan_distance(
+        # [24]: Manhattan distance to opponent head normalized
+        features[:, 24] = self._compute_manhattan_distance(
             head_self, head_opponent
         ) / self.grid_diagonal
 
-        # [27]: Opponent threat level
-        features[:, 27] = self._compute_threat_level(
+        # [25]: Opponent threat level
+        features[:, 25] = self._compute_threat_level(
             head_self, head_opponent, food, length_self, length_opponent
         )
 
-        # [28]: Can reach opponent head via flood-fill
+        # [26]: Can reach opponent head via flood-fill
         if self.use_flood_fill:
-            features[:, 28] = self._compute_reachability(
+            features[:, 26] = self._compute_reachability(
                 head_self, head_opponent, snake_self, length_self,
                 snake_opponent, length_opponent
             )
@@ -207,22 +207,22 @@ class CompetitiveFeatureEncoder:
             # Use simple heuristic: reachable if distance < average dimension / 2
             avg_dimension = (self.grid_width + self.grid_height) / 2
             dist = self._compute_manhattan_distance(head_self, head_opponent)
-            features[:, 28] = (dist < avg_dimension / 2).float()
+            features[:, 26] = (dist < avg_dimension / 2).float()
 
         # ========== COMPETITIVE METRICS (6 dims) ==========
 
-        # [29]: Length difference normalized
-        features[:, 29] = (length_self.float() - length_opponent.float()) / self.max_length
+        # [27]: Length difference normalized
+        features[:, 27] = (length_self.float() - length_opponent.float()) / self.max_length
 
-        # [30]: Food count difference
-        features[:, 30] = (food_count_self.float() - food_count_opponent.float()) / self.target_food
+        # [28]: Food count difference
+        features[:, 28] = (food_count_self.float() - food_count_opponent.float()) / self.target_food
 
-        # [31]: Food proximity advantage
+        # [29]: Food proximity advantage
         dist_self_food = self._compute_manhattan_distance(head_self, food)
         dist_opponent_food = self._compute_manhattan_distance(head_opponent, food)
-        features[:, 31] = (dist_opponent_food - dist_self_food) / self.grid_diagonal
+        features[:, 29] = (dist_opponent_food - dist_self_food) / self.grid_diagonal
 
-        # [32]: Space control (flood-fill difference)
+        # [30]: Space control (flood-fill difference)
         if self.use_flood_fill:
             flood_self = self._compute_flood_fill_total(
                 head_self, snake_self, length_self, snake_opponent, length_opponent
@@ -230,16 +230,16 @@ class CompetitiveFeatureEncoder:
             flood_opponent = self._compute_flood_fill_total(
                 head_opponent, snake_opponent, length_opponent, snake_self, length_self
             )
-            features[:, 32] = (flood_self - flood_opponent) / self.total_cells
+            features[:, 30] = (flood_self - flood_opponent) / self.total_cells
         else:
             # Use length difference as proxy for space control
-            features[:, 32] = (length_self.float() - length_opponent.float()) / self.max_length
+            features[:, 30] = (length_self.float() - length_opponent.float()) / self.max_length
 
-        # [33]: Steps since last food normalized
-        features[:, 33] = torch.clamp(steps_since_food_self.float() / 100.0, 0.0, 1.0)
+        # [31]: Steps since last food normalized
+        features[:, 31] = torch.clamp(steps_since_food_self.float() / 100.0, 0.0, 1.0)
 
-        # [34]: Round progress
-        features[:, 34] = food_count_self.float() / self.target_food
+        # [32]: Round progress
+        features[:, 32] = food_count_self.float() / self.target_food
 
         return features
 
@@ -264,52 +264,52 @@ class CompetitiveFeatureEncoder:
         direction: torch.Tensor
     ) -> torch.Tensor:
         """
-        Compute danger from walls and self in 4 directions (straight, left, right, back).
+        Compute danger from walls and self in 3 directions (straight, left, right).
 
         VECTORIZED VERSION - No Python loops, pure tensor operations.
 
-        Returns: (batch, 4) tensor of binary danger flags
+        Returns: (batch, 3) tensor of binary danger flags
         """
         batch_size = head.shape[0]
 
-        # Compute next positions for all 4 relative directions at once
-        # relative_offsets: [straight=0, left=-1, right=+1, back=+2]
-        relative_offsets = torch.tensor([0, -1, 1, 2], device=self.device)  # (4,)
-        check_dirs = (direction.unsqueeze(1) + relative_offsets.unsqueeze(0)) % 4  # (batch, 4)
+        # Compute next positions for all 3 relative directions at once
+        # relative_offsets: [straight=0, left=-1, right=+1]
+        relative_offsets = torch.tensor([0, -1, 1], device=self.device)  # (3,)
+        check_dirs = (direction.unsqueeze(1) + relative_offsets.unsqueeze(0)) % 4  # (batch, 3)
 
-        # Get deltas for all directions: (batch, 4, 2)
-        deltas = self.direction_deltas[check_dirs]  # (batch, 4, 2)
+        # Get deltas for all directions: (batch, 3, 2)
+        deltas = self.direction_deltas[check_dirs]  # (batch, 3, 2)
 
-        # Compute next positions: (batch, 4, 2)
-        next_positions = head.unsqueeze(1) + deltas  # (batch, 1, 2) + (batch, 4, 2) = (batch, 4, 2)
+        # Compute next positions: (batch, 3, 2)
+        next_positions = head.unsqueeze(1) + deltas  # (batch, 1, 2) + (batch, 3, 2) = (batch, 3, 2)
 
-        # Check wall collisions (vectorized): (batch, 4)
-        x_coords = next_positions[:, :, 0]  # (batch, 4)
-        y_coords = next_positions[:, :, 1]  # (batch, 4)
+        # Check wall collisions (vectorized): (batch, 3)
+        x_coords = next_positions[:, :, 0]  # (batch, 3)
+        y_coords = next_positions[:, :, 1]  # (batch, 3)
         is_wall = (
             (x_coords < 0) | (x_coords >= self.grid_width) |   # X bound
             (y_coords < 0) | (y_coords >= self.grid_height)    # Y bound
-        ).float()  # (batch, 4)
+        ).float()  # (batch, 3)
 
         # Check self collisions (vectorized)
-        # Compare next_positions (batch, 4, 2) with snake body (batch, max_length, 2)
-        # Expand dimensions: next_pos (batch, 4, 1, 2) vs snake (batch, 1, max_length, 2)
-        next_pos_expanded = next_positions.unsqueeze(2)  # (batch, 4, 1, 2)
+        # Compare next_positions (batch, 3, 2) with snake body (batch, max_length, 2)
+        # Expand dimensions: next_pos (batch, 3, 1, 2) vs snake (batch, 1, max_length, 2)
+        next_pos_expanded = next_positions.unsqueeze(2)  # (batch, 3, 1, 2)
         snake_expanded = snake.unsqueeze(1)  # (batch, 1, max_length, 2)
 
-        # Check if next_pos matches any snake segment: (batch, 4, max_length)
-        matches = ((next_pos_expanded == snake_expanded).all(dim=-1))  # (batch, 4, max_length)
+        # Check if next_pos matches any snake segment: (batch, 3, max_length)
+        matches = ((next_pos_expanded == snake_expanded).all(dim=-1))  # (batch, 3, max_length)
 
         # Create mask for valid snake segments based on length
         segment_indices = torch.arange(snake.shape[1], device=self.device)  # (max_length,)
         valid_segments = segment_indices.unsqueeze(0) < length.unsqueeze(1)  # (batch, max_length)
         valid_segments = valid_segments.unsqueeze(1)  # (batch, 1, max_length)
 
-        # Check if any valid segment matches: (batch, 4)
-        is_self_collision = (matches & valid_segments).any(dim=2).float()  # (batch, 4)
+        # Check if any valid segment matches: (batch, 3)
+        is_self_collision = (matches & valid_segments).any(dim=2).float()  # (batch, 3)
 
         # Combine: danger if wall OR self-collision
-        dangers = torch.maximum(is_wall, is_self_collision)  # (batch, 4)
+        dangers = torch.maximum(is_wall, is_self_collision)  # (batch, 3)
 
         return dangers
 
@@ -449,41 +449,41 @@ class CompetitiveFeatureEncoder:
         length_opponent: torch.Tensor
     ) -> torch.Tensor:
         """
-        Compute danger from opponent body in 4 directions (straight, left, right, back).
+        Compute danger from opponent body in 3 directions (straight, left, right).
 
         VECTORIZED VERSION - No Python loops, pure tensor operations.
 
-        Returns: (batch, 4) tensor
+        Returns: (batch, 3) tensor
         """
         batch_size = head.shape[0]
 
-        # Compute next positions for all 4 relative directions at once
-        # relative_offsets: [straight=0, left=-1, right=+1, back=+2]
-        relative_offsets = torch.tensor([0, -1, 1, 2], device=self.device)  # (4,)
-        check_dirs = (direction.unsqueeze(1) + relative_offsets.unsqueeze(0)) % 4  # (batch, 4)
+        # Compute next positions for all 3 relative directions at once
+        # relative_offsets: [straight=0, left=-1, right=+1]
+        relative_offsets = torch.tensor([0, -1, 1], device=self.device)  # (3,)
+        check_dirs = (direction.unsqueeze(1) + relative_offsets.unsqueeze(0)) % 4  # (batch, 3)
 
-        # Get deltas for all directions: (batch, 4, 2)
-        deltas = self.direction_deltas[check_dirs]  # (batch, 4, 2)
+        # Get deltas for all directions: (batch, 3, 2)
+        deltas = self.direction_deltas[check_dirs]  # (batch, 3, 2)
 
-        # Compute next positions: (batch, 4, 2)
-        next_positions = head.unsqueeze(1) + deltas  # (batch, 1, 2) + (batch, 4, 2) = (batch, 4, 2)
+        # Compute next positions: (batch, 3, 2)
+        next_positions = head.unsqueeze(1) + deltas  # (batch, 1, 2) + (batch, 3, 2) = (batch, 3, 2)
 
         # Check collisions with opponent body (vectorized)
-        # Compare next_positions (batch, 4, 2) with opponent snake (batch, max_length, 2)
-        # Expand dimensions: next_pos (batch, 4, 1, 2) vs snake_opp (batch, 1, max_length, 2)
-        next_pos_expanded = next_positions.unsqueeze(2)  # (batch, 4, 1, 2)
+        # Compare next_positions (batch, 3, 2) with opponent snake (batch, max_length, 2)
+        # Expand dimensions: next_pos (batch, 3, 1, 2) vs snake_opp (batch, 1, max_length, 2)
+        next_pos_expanded = next_positions.unsqueeze(2)  # (batch, 3, 1, 2)
         snake_expanded = snake_opponent.unsqueeze(1)  # (batch, 1, max_length, 2)
 
-        # Check if next_pos matches any opponent segment: (batch, 4, max_length)
-        matches = ((next_pos_expanded == snake_expanded).all(dim=-1))  # (batch, 4, max_length)
+        # Check if next_pos matches any opponent segment: (batch, 3, max_length)
+        matches = ((next_pos_expanded == snake_expanded).all(dim=-1))  # (batch, 3, max_length)
 
         # Create mask for valid opponent segments based on length
         segment_indices = torch.arange(snake_opponent.shape[1], device=self.device)  # (max_length,)
         valid_segments = segment_indices.unsqueeze(0) < length_opponent.unsqueeze(1)  # (batch, max_length)
         valid_segments = valid_segments.unsqueeze(1)  # (batch, 1, max_length)
 
-        # Check if any valid segment matches: (batch, 4)
-        dangers = (matches & valid_segments).any(dim=2).float()  # (batch, 4)
+        # Check if any valid segment matches: (batch, 3)
+        dangers = (matches & valid_segments).any(dim=2).float()  # (batch, 3)
 
         return dangers
 

@@ -5,42 +5,42 @@ This document describes the enhanced features implemented to complement the exis
 
 ## Feature Dimensions
 
-### Base Features (11 dimensions)
-- **[0-3]**: Danger detection (straight, left, right, back)
-- **[4-7]**: Food direction (up, right, down, left)
-- **[8-10]**: Current direction (one-hot encoding, 3 bits for 4 directions)
+### Base Features (10 dimensions)
+- **[0-2]**: Danger detection (straight, left, right)
+- **[3-6]**: Food direction (up, right, down, left)
+- **[7-9]**: Current direction (one-hot encoding, 3 bits for 4 directions)
 
 ### Flood-Fill Features (3 dimensions) - **use_flood_fill=True**
-- **[11-13]**: Flood-fill free space (straight, right, left)
+- **[10-12]**: Flood-fill free space (straight, right, left)
   - Normalized reachable space from each direction
   - Range: [0, 1] where 1 = entire grid accessible
 
 ### Enhanced Features (10 dimensions) - **use_enhanced_features=True**
-- **[14-16]**: Escape route count (straight, right, left)
+- **[13-15]**: Escape route count (straight, right, left)
   - Number of safe adjacent cells from each direction
   - Normalized by max possible (4 directions)
   - Range: [0, 1]
 
-- **[17-20]**: Tail direction (up, right, down, left)
+- **[16-19]**: Tail direction (up, right, down, left)
   - Direction from head to tail
   - Following tail is often safe since it moves away
 
-- **[21]**: Tail reachability (0 or 1)
+- **[20]**: Tail reachability (0 or 1)
   - Can the head reach the tail via flood-fill?
   - **High-impact feature** for preventing self-traps
 
-- **[22]**: Distance to tail (normalized)
+- **[21]**: Distance to tail (normalized)
   - Manhattan distance to tail
   - Normalized by grid diagonal (max distance = 2 * (grid_size - 1))
 
-- **[23]**: Snake length ratio
+- **[22]**: Snake length ratio
   - current_length / max_possible_length
   - Helps agent adapt strategy as it grows
 
 ## Total Dimensions
-- **Base only**: 11 dimensions (use_flood_fill=False, use_enhanced_features=False)
-- **With flood-fill**: 14 dimensions (use_flood_fill=True, use_enhanced_features=False)
-- **With all features**: 24 dimensions (use_flood_fill=True, use_enhanced_features=True)
+- **Base only**: 10 dimensions (use_flood_fill=False, use_enhanced_features=False)
+- **With flood-fill**: 13 dimensions (use_flood_fill=True, use_enhanced_features=False)
+- **With all features**: 23 dimensions (use_flood_fill=True, use_enhanced_features=True)
 
 ## Implementation Details
 
@@ -94,7 +94,7 @@ The body awareness features provide information about the snake's current state 
 ```python
 from core.environment_vectorized import VectorizedSnakeEnv
 
-# Enable all features (24 dimensions)
+# Enable all features (23 dimensions)
 env = VectorizedSnakeEnv(
     num_envs=256,
     grid_size=10,
@@ -102,28 +102,28 @@ env = VectorizedSnakeEnv(
     use_enhanced_features=True
 )
 
-obs = env.reset()  # Shape: (256, 24)
+obs = env.reset()  # Shape: (256, 23)
 ```
 
 ### With FeatureEncoder
 ```python
 from core.state_representations import FeatureEncoder
 
-# Enable all features (24 dimensions)
+# Enable all features (23 dimensions)
 encoder = FeatureEncoder(
     grid_size=10,
     use_flood_fill=True,
     use_enhanced_features=True
 )
 
-obs = encoder.encode(snake, food, direction)  # Shape: (24,)
+obs = encoder.encode(snake, food, direction)  # Shape: (23,)
 ```
 
 ## Backward Compatibility
 
 All existing code continues to work without modification:
-- Default behavior unchanged (11-dimensional base features)
-- Flood-fill features remain at 14 dimensions when use_flood_fill=True
+- Default behavior unchanged (10-dimensional base features)
+- Flood-fill features remain at 13 dimensions when use_flood_fill=True
 - Enhanced features only activate when use_enhanced_features=True
 
 ## Training Considerations
@@ -142,7 +142,7 @@ All existing code continues to work without modification:
 **Note**: Tail reachability uses BFS, which adds computational cost. However, this is still much faster than the main flood-fill computation and provides high value.
 
 ### Network Architecture Considerations
-When using 24-dimensional features:
+When using 23-dimensional features:
 - Increase hidden layer sizes proportionally (e.g., [256, 256] -> [384, 384])
 - Consider using layer normalization for stable training
 - The additional features may require more training episodes to fully utilize
