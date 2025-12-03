@@ -40,47 +40,49 @@ def smooth(data, window=50):
 
 
 def plot_training_results(name: str, rewards: list, scores: list, metrics, save_dir: Path, timestamp: str):
-    """Generate and save 3-panel plot for training results including death causes"""
-    fig, axes = plt.subplots(1, 3, figsize=(15, 4))
-
-    # Episode Rewards
-    ax1 = axes[0]
-    ax1.plot(rewards, alpha=0.3, color='blue', label='Raw')
-    if len(rewards) >= 50:
-        smoothed = smooth(rewards, 50)
-        ax1.plot(range(49, 49 + len(smoothed)), smoothed, color='blue', label='Smoothed (50)')
-    ax1.set_xlabel('Episode')
-    ax1.set_ylabel('Reward')
-    ax1.set_title(f'{name} - Episode Rewards')
-    ax1.legend()
-    ax1.grid(True, alpha=0.3)
+    """Generate and save 2-panel plot for training results"""
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
 
     # Episode Scores (Food Eaten)
-    ax2 = axes[1]
-    ax2.plot(scores, alpha=0.3, color='green', label='Raw')
+    ax1 = axes[0]
+    ax1.plot(scores, alpha=0.3, color='green', label='Raw')
     if len(scores) >= 50:
         smoothed = smooth(scores, 50)
-        ax2.plot(range(49, 49 + len(smoothed)), smoothed, color='green', label='Smoothed (50)')
-    ax2.set_xlabel('Episode')
-    ax2.set_ylabel('Score (Food Eaten)')
-    ax2.set_title(f'{name} - Episode Scores')
-    ax2.legend()
-    ax2.grid(True, alpha=0.3)
+        ax1.plot(range(49, 49 + len(smoothed)), smoothed, color='green', label='Smoothed (50)')
+    # Max score line
+    max_score = max(scores) if scores else 0
+    ax1.axhline(y=max_score, color='darkgreen', linestyle='--', linewidth=1.5, alpha=0.8)
+    ax1.text(len(scores) * 0.02, max_score + 0.5, f'Max: {max_score}',
+             color='darkgreen', fontsize=9, fontweight='bold')
+    # Average score line
+    avg_score = np.mean(scores) if scores else 0
+    ax1.axhline(y=avg_score, color='blue', linestyle='--', linewidth=1.5, alpha=0.8)
+    ax1.text(len(scores) * 0.02, avg_score + 0.5, f'Avg: {avg_score:.1f}',
+             color='blue', fontsize=9, fontweight='bold')
+    ax1.set_xlabel('Episode')
+    ax1.set_ylabel('Score (Food Eaten)')
+    ax1.set_xlim(0, 2000)
+    ax1.set_ylim(0, 100)
+    ax1.set_title(f'{name} - Episode Scores')
+    ax1.legend(['Raw', 'Smoothed (50)'], loc='upper left')
+    ax1.grid(True, alpha=0.3)
 
     # Cumulative Deaths
-    ax3 = axes[2]
+    ax2 = axes[1]
     episodes = range(len(metrics.wall_deaths_per_episode))
-    ax3.plot(episodes, np.cumsum(metrics.wall_deaths_per_episode),
+    ax2.plot(episodes, np.cumsum(metrics.wall_deaths_per_episode),
              label='Wall', color='red')
-    ax3.plot(episodes, np.cumsum(metrics.self_deaths_per_episode),
+    ax2.plot(episodes, np.cumsum(metrics.self_deaths_per_episode),
              label='Self', color='orange')
-    ax3.plot(episodes, np.cumsum(metrics.timeouts_per_episode),
+    ax2.plot(episodes, np.cumsum(metrics.entrapments_per_episode),
+             label='Entrapment', color='purple')
+    ax2.plot(episodes, np.cumsum(metrics.timeouts_per_episode),
              label='Timeout', color='gray')
-    ax3.set_xlabel('Episode')
-    ax3.set_ylabel('Cumulative Count')
-    ax3.set_title(f'{name} - Death Causes')
-    ax3.legend()
-    ax3.grid(True, alpha=0.3)
+    ax2.set_xlabel('Episode')
+    ax2.set_ylabel('Cumulative Count')
+    ax2.set_title(f'{name} - Death Causes')
+    ax2.legend()
+    ax2.grid(True, alpha=0.3)
 
     plt.tight_layout()
 
@@ -388,7 +390,7 @@ def main():
                 print(f"  Avg Reward (last 100): {results[full_name]['avg_reward']:.2f}")
                 print(f"  Avg Score (last 100): {results[full_name]['avg_score']:.2f}")
                 print(f"  Max Score: {results[full_name]['max_score']}")
-                print(f"  Death Stats: Wall={death_stats['wall_deaths']}, Self={death_stats['self_deaths']}, Timeout={death_stats['timeouts']}")
+                print(f"  Death Stats: Wall={death_stats['wall_deaths']}, Self={death_stats['self_deaths']}, Entrapment={death_stats['entrapments']}, Timeout={death_stats['timeouts']}")
 
             except Exception as e:
                 print(f"  ERROR training {full_name}: {e}")

@@ -163,7 +163,7 @@ class PPOTrainer:
 
         # Determine input/output dimensions
         if state_representation == 'feature':
-            input_dim = 14 if use_flood_fill else 11
+            input_dim = 13 if use_flood_fill else 10
         else:
             input_dim = grid_size
 
@@ -372,8 +372,10 @@ class PPOTrainer:
                 if dones.any():
                     done_indices = torch.where(dones)[0]
                     for idx in done_indices:
-                        # Determine death cause
-                        if info['wall_deaths'][idx].item():
+                        # Determine death cause (entrapment takes priority over wall/self)
+                        if info['entrapments'][idx].item():
+                            death_cause = 'entrapment'
+                        elif info['wall_deaths'][idx].item():
                             death_cause = 'wall'
                         elif info['self_deaths'][idx].item():
                             death_cause = 'self'

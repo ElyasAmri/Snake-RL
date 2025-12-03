@@ -344,6 +344,7 @@ class MetricsTracker:
         # Death cause tracking (per episode for cumulative plots)
         self.wall_deaths_per_episode = []
         self.self_deaths_per_episode = []
+        self.entrapments_per_episode = []
         self.timeouts_per_episode = []
 
     def add_episode(self, reward: float, length: int, score: int, death_cause: str = 'timeout'):
@@ -354,7 +355,7 @@ class MetricsTracker:
             reward: Total episode reward
             length: Episode length in steps
             score: Food items eaten
-            death_cause: 'wall', 'self', or 'timeout'
+            death_cause: 'wall', 'self', 'entrapment', or 'timeout'
         """
         self.episode_rewards.append(reward)
         self.episode_lengths.append(length)
@@ -363,6 +364,7 @@ class MetricsTracker:
         # Track death cause (one-hot style for cumulative plotting)
         self.wall_deaths_per_episode.append(1 if death_cause == 'wall' else 0)
         self.self_deaths_per_episode.append(1 if death_cause == 'self' else 0)
+        self.entrapments_per_episode.append(1 if death_cause == 'entrapment' else 0)
         self.timeouts_per_episode.append(1 if death_cause == 'timeout' else 0)
 
     def add_loss(self, loss: float):
@@ -400,22 +402,27 @@ class MetricsTracker:
             return {
                 'wall_deaths': 0,
                 'self_deaths': 0,
+                'entrapments': 0,
                 'timeouts': 0,
                 'wall_death_rate': 0.0,
                 'self_death_rate': 0.0,
+                'entrapment_rate': 0.0,
                 'timeout_rate': 0.0,
             }
 
         wall_deaths = sum(self.wall_deaths_per_episode)
         self_deaths = sum(self.self_deaths_per_episode)
+        entrapments = sum(self.entrapments_per_episode)
         timeouts = sum(self.timeouts_per_episode)
 
         return {
             'wall_deaths': wall_deaths,
             'self_deaths': self_deaths,
+            'entrapments': entrapments,
             'timeouts': timeouts,
             'wall_death_rate': wall_deaths / total,
             'self_death_rate': self_deaths / total,
+            'entrapment_rate': entrapments / total,
             'timeout_rate': timeouts / total,
         }
 
@@ -424,6 +431,7 @@ class MetricsTracker:
         return {
             'wall_cumulative': np.cumsum(self.wall_deaths_per_episode),
             'self_cumulative': np.cumsum(self.self_deaths_per_episode),
+            'entrapment_cumulative': np.cumsum(self.entrapments_per_episode),
             'timeout_cumulative': np.cumsum(self.timeouts_per_episode),
         }
 

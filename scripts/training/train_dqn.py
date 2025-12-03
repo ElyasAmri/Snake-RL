@@ -132,13 +132,13 @@ class DQNTrainer:
         # Create networks
         if state_representation == 'feature':
             # Determine input dimension based on feature configuration
-            input_dim = 11
+            input_dim = 10  # Base features: 3 danger + 4 food direction + 3 current direction
             if use_flood_fill:
-                input_dim = 14
+                input_dim = 13  # 10 base + 3 flood-fill
             if use_selective_features:
-                input_dim = 19
+                input_dim = 18  # 10 base + 3 flood-fill + 5 selective
             if use_enhanced_features:
-                input_dim = 24
+                input_dim = 23  # 10 base + 3 flood-fill + 10 enhanced
 
             if use_noisy:
                 # Noisy DQN with NoisyLinear layers
@@ -379,8 +379,10 @@ class DQNTrainer:
             if dones.any():
                 done_indices = torch.where(dones)[0]
                 for idx in done_indices:
-                    # Determine death cause
-                    if info['wall_deaths'][idx].item():
+                    # Determine death cause (entrapment takes priority over wall/self)
+                    if info['entrapments'][idx].item():
+                        death_cause = 'entrapment'
+                    elif info['wall_deaths'][idx].item():
                         death_cause = 'wall'
                     elif info['self_deaths'][idx].item():
                         death_cause = 'self'

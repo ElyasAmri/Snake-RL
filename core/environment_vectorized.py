@@ -232,6 +232,9 @@ class VectorizedSnakeEnv:
             device=self.device
         )
 
+        # Check if snake was trapped BEFORE the move (all 3 directions blocked)
+        was_trapped = self._check_entrapment()
+
         # Check wall collisions
         wall_collision = (
             (new_heads[:, 0] < 0) |
@@ -245,6 +248,9 @@ class VectorizedSnakeEnv:
 
         # Mark terminated environments
         terminated = wall_collision | self_collision
+
+        # Classify entrapment: died while having no valid moves
+        entrapment = terminated & was_trapped
         rewards[terminated] = self.reward_death
 
         # Check food consumption (only for non-terminated)
@@ -294,12 +300,14 @@ class VectorizedSnakeEnv:
         dones_output = self.dones.clone()
 
         # Save episode info BEFORE auto-reset (so we capture final scores/lengths)
+        # Deaths while trapped are classified as entrapment, not wall/self
         info = {
             'scores': self.scores.clone(),
             'steps': self.steps.clone(),
             'snake_lengths': self.snake_lengths.clone(),
-            'wall_deaths': wall_collision.clone(),
-            'self_deaths': self_collision.clone(),
+            'wall_deaths': (wall_collision & ~was_trapped).clone(),
+            'self_deaths': (self_collision & ~was_trapped).clone(),
+            'entrapments': entrapment.clone(),
             'timeouts': truncated.clone()
         }
 
@@ -352,6 +360,48 @@ class VectorizedSnakeEnv:
         collisions = valid_matches.any(dim=1)
 
         return collisions
+
+    def _check_entrapment(self) -> torch.Tensor:
+        """Check if snake has no valid moves (all 3 directions lead to collision)"""
+        # Direction deltas: UP=0, RIGHT=1, DOWN=2, LEFT=3
+        deltas = torch.tensor([
+            [0, -1],  # UP
+            [1, 0],   # RIGHT
+            [0, 1],   # DOWN
+            [-1, 0]   # LEFT
+        ], device=self.device)
+
+        blocked = []
+        current_heads = self.snakes[:, 0, :]
+
+        for action in range(3):  # 0=straight, 1=left, 2=right
+            # Get direction for this action
+            if action == 0:  # straight
+                test_dir = self.directions
+            elif action == 1:  # left
+                test_dir = (self.directions - 1) % 4
+            else:  # right
+                test_dir = (self.directions + 1) % 4
+
+            # Calculate test head positions
+            direction_deltas = deltas[test_dir]
+            test_heads = current_heads + direction_deltas
+
+            # Check wall collision
+            wall_hit = (
+                (test_heads[:, 0] < 0) |
+                (test_heads[:, 0] >= self.grid_size) |
+                (test_heads[:, 1] < 0) |
+                (test_heads[:, 1] >= self.grid_size)
+            )
+
+            # Check self collision
+            self_hit = self._check_self_collision(test_heads)
+
+            blocked.append(wall_hit | self_hit)
+
+        # Trapped if ALL directions blocked
+        return blocked[0] & blocked[1] & blocked[2]
 
     def _update_snakes(
         self,
