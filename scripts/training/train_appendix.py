@@ -344,7 +344,7 @@ def main(num_episodes: int = 3000, models: List[str] = None):
         'num_envs': 256,
         'grid_size': 10,
         'action_space_type': 'relative',
-        'use_flood_fill': True,
+        'use_flood_fill': False,  # Basic features only
         'learning_rate': 0.001,
         'batch_size': 64,
         'gamma': 0.99,
