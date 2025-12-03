@@ -320,21 +320,21 @@ class CompetitiveFeatureEncoder:
         food: torch.Tensor
     ) -> torch.Tensor:
         """
-        Compute food direction as 4 binary features (up, right, down, left).
+        Compute food direction as 2 continuous relative features (dx, dy normalized).
 
-        Returns: (batch, 4) tensor
+        This is much easier for the network to learn than 4 binary features.
+        The continuous values provide gradient information about food distance.
+
+        Returns: (batch, 4) tensor (last 2 dims are padding for backward compatibility)
         """
         batch_size = head.shape[0]
         food_dir = torch.zeros((batch_size, 4), dtype=torch.float32, device=self.device)
 
-        # UP: food_y < head_y
-        food_dir[:, 0] = (food[:, 1] < head[:, 1]).float()
-        # RIGHT: food_x > head_x
-        food_dir[:, 1] = (food[:, 0] > head[:, 0]).float()
-        # DOWN: food_y > head_y
-        food_dir[:, 2] = (food[:, 1] > head[:, 1]).float()
-        # LEFT: food_x < head_x
-        food_dir[:, 3] = (food[:, 0] < head[:, 0]).float()
+        # Relative continuous position (like classic env)
+        # Normalized to [-1, 1] range
+        food_dir[:, 0] = (food[:, 0] - head[:, 0]).float() / self.grid_width   # dx normalized
+        food_dir[:, 1] = (food[:, 1] - head[:, 1]).float() / self.grid_height  # dy normalized
+        # food_dir[:, 2:4] remain 0 (padding to keep 33-dim observation space)
 
         return food_dir
 

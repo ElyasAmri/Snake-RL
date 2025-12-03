@@ -103,7 +103,7 @@ class VectorizedTwoSnakeEnv:
         # Action/observation spaces (for compatibility)
         self.action_space = spaces.Discrete(3)  # STRAIGHT, RIGHT, LEFT
         self.observation_space = spaces.Box(
-            low=0, high=1, shape=(num_envs, 35), dtype=np.float32
+            low=0, high=1, shape=(num_envs, 33), dtype=np.float32
         )
 
         # Initialize game state tensors
@@ -175,6 +175,10 @@ class VectorizedTwoSnakeEnv:
         self.steps_since_food1 = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         self.steps_since_food2 = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
 
+        # Distance to food tracking (for reward shaping)
+        self.prev_dist1 = torch.zeros(self.num_envs, dtype=torch.float32, device=self.device)
+        self.prev_dist2 = torch.zeros(self.num_envs, dtype=torch.float32, device=self.device)
+
         # Episode tracking
         self.episode_count = 0
         self.total_steps = 0
@@ -222,6 +226,13 @@ class VectorizedTwoSnakeEnv:
 
         # Spawn food
         self._spawn_food_all()
+
+        # Initialize distance tracking for reward shaping
+        head1 = self.snakes1[:, 0, :].float()
+        head2 = self.snakes2[:, 0, :].float()
+        food = self.foods.float()
+        self.prev_dist1 = torch.abs(head1[:, 0] - food[:, 0]) + torch.abs(head1[:, 1] - food[:, 1])
+        self.prev_dist2 = torch.abs(head2[:, 0] - food[:, 0]) + torch.abs(head2[:, 1] - food[:, 1])
 
         # Get initial observations
         return self._get_observations()
@@ -293,6 +304,26 @@ class VectorizedTwoSnakeEnv:
         # Move snakes (only if alive)
         self._move_snake(1)
         self._move_snake(2)
+
+        # ===== REWARD SHAPING: Encourage moving toward food =====
+        # Compute current distance to food after movement
+        head1 = self.snakes1[:, 0, :].float()
+        head2 = self.snakes2[:, 0, :].float()
+        food = self.foods.float()
+        curr_dist1 = torch.abs(head1[:, 0] - food[:, 0]) + torch.abs(head1[:, 1] - food[:, 1])
+        curr_dist2 = torch.abs(head2[:, 0] - food[:, 0]) + torch.abs(head2[:, 1] - food[:, 1])
+
+        # Reward for getting closer to food (+0.1), penalty for getting farther (-0.1)
+        # Only apply to alive snakes
+        shaping_reward1 = (self.prev_dist1 - curr_dist1) * 0.1
+        shaping_reward2 = (self.prev_dist2 - curr_dist2) * 0.1
+        rewards1 = torch.where(self.alive1, rewards1 + shaping_reward1, rewards1)
+        rewards2 = torch.where(self.alive2, rewards2 + shaping_reward2, rewards2)
+
+        # Update previous distances for next step
+        self.prev_dist1 = curr_dist1
+        self.prev_dist2 = curr_dist2
+        # ===== END REWARD SHAPING =====
 
         # Check collisions (wall, self, opponent)
         collision1 = self._check_collisions(1)
@@ -516,6 +547,14 @@ class VectorizedTwoSnakeEnv:
             env_indices = collected.nonzero(as_tuple=True)[0]
             for env_idx in env_indices:
                 self._spawn_food_single(env_idx.item())
+
+            # Update prev_dist for reward shaping after food respawn
+            # Recalculate distances to new food positions
+            new_food = self.foods[env_indices].float()
+            head1 = self.snakes1[env_indices, 0, :].float()
+            head2 = self.snakes2[env_indices, 0, :].float()
+            self.prev_dist1[env_indices] = torch.abs(head1[:, 0] - new_food[:, 0]) + torch.abs(head1[:, 1] - new_food[:, 1])
+            self.prev_dist2[env_indices] = torch.abs(head2[:, 0] - new_food[:, 0]) + torch.abs(head2[:, 1] - new_food[:, 1])
 
         return collected
 

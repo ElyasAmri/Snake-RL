@@ -76,6 +76,9 @@ class DQNTrainer:
         use_curriculum: bool = False,
         curriculum_stages: list = None,
 
+        # Reward config
+        reward_death: float = -10.0,
+
         # Other
         seed: int = 67,
         device: Optional[torch.device] = None,
@@ -123,6 +126,7 @@ class DQNTrainer:
             action_space_type=action_space_type,
             state_representation=state_representation,
             max_steps=max_steps,
+            reward_death=reward_death,
             use_flood_fill=use_flood_fill,
             use_enhanced_features=use_enhanced_features,
             use_selective_features=use_selective_features,

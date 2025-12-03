@@ -115,6 +115,9 @@ class PPOTrainer:
         num_episodes: int = 10000,
         max_steps: int = 1000,
 
+        # Reward config
+        reward_death: float = -10.0,
+
         # Other
         seed: int = 67,
         device: Optional[torch.device] = None,
@@ -123,6 +126,7 @@ class PPOTrainer:
     ):
         """Initialize PPO trainer"""
         self.max_time = max_time
+        self.reward_death = reward_death
 
         # Set seed
         set_seed(seed)
@@ -157,6 +161,7 @@ class PPOTrainer:
             action_space_type=action_space_type,
             state_representation=state_representation,
             max_steps=max_steps,
+            reward_death=reward_death,
             use_flood_fill=use_flood_fill,
             device=self.device
         )

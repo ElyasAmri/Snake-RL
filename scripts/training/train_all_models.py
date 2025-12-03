@@ -272,6 +272,8 @@ def main():
                         help="Train only specific feature variant (default: all)")
     parser.add_argument("--algorithm", type=str, default=None,
                         help="Train only specific algorithm (e.g., 'DQN', 'PPO')")
+    parser.add_argument("--reward-death", type=float, default=-10.0,
+                        help="Death penalty reward (default: -10.0)")
     args = parser.parse_args()
 
     # Filter feature variants if specified
@@ -356,7 +358,8 @@ def main():
                     grid_size=args.grid_size,
                     seed=args.seed,
                     use_flood_fill=use_flood_fill,
-                    use_enhanced_features=use_enhanced
+                    use_enhanced_features=use_enhanced,
+                    reward_death=args.reward_death
                 )
                 elapsed = time.time() - start_time
 

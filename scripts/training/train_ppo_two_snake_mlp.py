@@ -228,7 +228,7 @@ class TwoSnakePPOTrainer:
 
         # Agents
         self.agent1 = TwoSnakePPOAgent(
-            input_dim=35,
+            input_dim=33,
             output_dim=3,
             hidden_dims=config.big_hidden_dims,
             actor_lr=config.actor_lr,
@@ -238,7 +238,7 @@ class TwoSnakePPOTrainer:
         )
 
         self.agent2 = TwoSnakePPOAgent(
-            input_dim=35,
+            input_dim=33,
             output_dim=3,
             hidden_dims=config.small_hidden_dims,
             actor_lr=config.actor_lr,
