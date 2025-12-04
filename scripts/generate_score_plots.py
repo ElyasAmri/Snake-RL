@@ -148,7 +148,7 @@ def train_and_plot(algorithm: str, use_flood_fill: bool, num_episodes: int, outp
 def main():
     """Generate score-only plots for report"""
 
-    output_dir = Path('report/figures')
+    output_dir = Path('results/figures')
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Training configurations

@@ -89,6 +89,5 @@ timestamps.txt
 archive/
 results/
 
-# Report and presentation figures
-report/figures/
+# Presentation figures (generated separately)
 presentation/figures/

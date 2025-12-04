@@ -17,6 +17,9 @@
 \usepackage[font=small,labelfont=bf]{caption}
 \usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc, fit}
 
+% Graphics path - figures are stored in results/figures
+\graphicspath{{../results/figures/}}
+
 % Header/footer setup
 \pagestyle{fancy}
 \fancyhf{}
@@ -652,14 +655,14 @@ Figure \ref{fig:dqn_results} shows DQN training progression with basic features,
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\textwidth]{figures/dqn_basic_scores.png}
+\includegraphics[width=0.95\textwidth]{dqn_basic_scores.png}
 \caption{DQN training with basic features. Episode scores plateau around 16-17 average with maximum score of 31. Without spatial awareness features, performance is limited by frequent entrapment deaths.}
 \label{fig:dqn_results}
 \end{figure}
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\textwidth]{figures/ppo_basic_scores.png}
+\includegraphics[width=0.95\textwidth]{ppo_basic_scores.png}
 \caption{PPO training with basic features. Despite faster convergence, basic features limit performance to around 17-18 average with maximum score of 35, similar to DQN.}
 \label{fig:ppo_results}
 \end{figure}
@@ -785,14 +788,14 @@ Figures \ref{fig:dqn_flood} and \ref{fig:ppo_flood} demonstrate the dramatic imp
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\textwidth]{figures/dqn_flood-fill_scores.png}
+\includegraphics[width=0.95\textwidth]{dqn_flood-fill_scores.png}
 \caption{DQN with flood-fill features training scores. With spatial awareness, scores improve dramatically to 24-27 average with maximum score of 53, compared to 16-17 average with basic features. The flood-fill features enable the agent to avoid dead-end positions.}
 \label{fig:dqn_flood}
 \end{figure}
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\textwidth]{figures/ppo_flood-fill_scores.png}
+\includegraphics[width=0.95\textwidth]{ppo_flood-fill_scores.png}
 \caption{PPO with flood-fill features training scores. PPO achieves the best performance with 35-37 average score and maximum of 52, compared to 17-18 average with basic features. The combination of PPO's sample efficiency and flood-fill's spatial awareness produces optimal results.}
 \label{fig:ppo_flood}
 \end{figure}
@@ -823,7 +826,7 @@ The results demonstrate successful generalization across grid sizes. Absolute sc
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\textwidth]{figures/grid_size_generalization.png}
+\includegraphics[width=0.95\textwidth]{grid_size_generalization.png}
 \caption{Grid size generalization results. Left: Average scores increase with grid size due to more maneuvering room. Right: Performance relative to theoretical maximum decreases for larger grids. The model trained on 10x10 (blue) successfully transfers to other grid sizes (green).}
 \label{fig:grid_generalization}
 \end{figure}
@@ -973,7 +976,7 @@ Despite achieving reasonable performance, our approach has several limitations:
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\textwidth]{figures/sample_inefficiency.png}
+\includegraphics[width=0.95\textwidth]{sample_inefficiency.png}
 \caption{Sample inefficiency in deep RL: median human-normalized scores across 57 Atari games. Rainbow DQN reaches human-level performance at 18 million frames. Source: \cite{irpan2018deep}.}
 \label{fig:sample_inefficiency}
 \end{figure}
@@ -982,7 +985,7 @@ Despite achieving reasonable performance, our approach has several limitations:
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\textwidth]{figures/pendulum_results.png}
+\includegraphics[width=0.95\textwidth]{pendulum_results.png}
 \caption{High variance in deep RL: 10 independent runs on Pendulum with identical hyperparameters. 3 of 10 runs fail entirely. Source: \cite{irpan2018deep}.}
 \label{fig:pendulum_variance}
 \end{figure}
@@ -1040,7 +1043,7 @@ Figure \ref{fig:appendix_training} shows the training score progression for all 
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\textwidth]{figures/appendix_scores.png}
+\includegraphics[width=0.95\textwidth]{appendix_scores.png}
 \caption{Training score curves for all algorithms over 3000 episodes with basic features. PPO achieves the highest performance (~19.5), while DQN variants plateau around 15-17 average score. Without flood-fill features, all algorithms are limited by their inability to detect dead-ends.}
 \label{fig:appendix_training}
 \end{figure}
@@ -1051,7 +1054,7 @@ Figure \ref{fig:appendix_deaths} shows the distribution of death causes across a
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\textwidth]{figures/appendix_deaths.png}
+\includegraphics[width=0.95\textwidth]{appendix_deaths.png}
 \caption{Death cause distribution by algorithm with basic features. Entrapment (orange) dominates across all algorithms (70-90\%), demonstrating that without flood-fill features, agents cannot detect and avoid dead-ends. Rainbow DQN shows the highest entrapment rate (89.3\%) but lowest wall/self collision rates, indicating it learned to avoid immediate obstacles but still falls into spatial traps.}
 \label{fig:appendix_deaths}
 \end{figure}

@@ -162,7 +162,7 @@ def train_and_evaluate():
         print(f"  Avg % of Max: {results[grid_size]['avg_pct_of_max']:.1f}%")
 
     # Generate comparison plot
-    output_dir = Path('report/figures')
+    output_dir = Path('results/figures')
     output_dir.mkdir(parents=True, exist_ok=True)
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
