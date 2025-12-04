@@ -9,8 +9,34 @@ import torch
 import numpy as np
 from typing import Tuple, Optional, Literal
 from collections import deque
+from dataclasses import dataclass
 import gymnasium as gym
 from gymnasium import spaces
+
+
+@dataclass
+class EntrapmentConfig:
+    """
+    Configuration for entrapment detection and reward modification.
+
+    When enabled, modifies rewards based on "soft entrapment" detection:
+    - If max(flood_fill_straight, flood_fill_right, flood_fill_left) < threshold,
+      the snake is considered entrapped
+    - Entrapped snakes receive positive step rewards (to encourage survival)
+    - Entrapped snakes receive negative food rewards (to discourage risky chasing)
+
+    Attributes:
+        enabled: Whether to enable entrapment-aware rewards
+        threshold: Free space ratio threshold (0-1). Below this = entrapped
+        reward_step_entrapped: Step reward when entrapped (positive encourages survival)
+        reward_food_entrapped: Food reward when entrapped (negative discourages chasing)
+        include_feature: Whether to add entrapped flag to state features
+    """
+    enabled: bool = False
+    threshold: float = 0.30
+    reward_step_entrapped: float = 0.02
+    reward_food_entrapped: float = -5.0
+    include_feature: bool = False
 
 
 class VectorizedSnakeEnv:
@@ -35,6 +61,7 @@ class VectorizedSnakeEnv:
         use_flood_fill: bool = False,
         use_enhanced_features: bool = False,
         use_selective_features: bool = False,
+        entrapment_config: EntrapmentConfig = None,
         device: torch.device = None
     ):
         """
@@ -53,11 +80,20 @@ class VectorizedSnakeEnv:
             use_flood_fill: Whether to use flood-fill features (14-dim instead of 11-dim)
             use_enhanced_features: Whether to use all enhanced features (24-dim total)
             use_selective_features: Whether to use only high-impact features (19-dim: flood-fill + tail features)
+            entrapment_config: Configuration for entrapment detection and reward modification
             device: PyTorch device (GPU/CPU)
         """
         # Validate feature flags (selective and enhanced are mutually exclusive)
         if use_selective_features and use_enhanced_features:
             raise ValueError("Cannot enable both use_selective_features and use_enhanced_features simultaneously")
+
+        # Store entrapment config (default to disabled)
+        self.entrapment_config = entrapment_config or EntrapmentConfig()
+
+        # Validate entrapment config: requires flood-fill to compute entrapment state
+        if self.entrapment_config.enabled and not use_flood_fill and not use_enhanced_features and not use_selective_features:
+            # Auto-enable flood-fill if entrapment is enabled
+            use_flood_fill = True
 
         self.num_envs = num_envs
         self.grid_size = grid_size
@@ -100,6 +136,11 @@ class VectorizedSnakeEnv:
             else:
                 feature_dim = 10  # Base features only
 
+            # Add entrapped feature if enabled
+            if self.entrapment_config.enabled and self.entrapment_config.include_feature:
+                feature_dim += 1
+
+            self.feature_dim = feature_dim  # Store for later use
             self.observation_space = spaces.Box(
                 low=0, high=1, shape=(num_envs, feature_dim), dtype=np.float32
             )
@@ -224,7 +265,7 @@ class VectorizedSnakeEnv:
         direction_deltas = deltas[self.directions]
         new_heads = current_heads + direction_deltas
 
-        # Initialize rewards
+        # Initialize rewards with default step reward
         rewards = torch.full(
             (self.num_envs,),
             self.reward_step,
@@ -234,6 +275,16 @@ class VectorizedSnakeEnv:
 
         # Check if snake was trapped BEFORE the move (all 3 directions blocked)
         was_trapped = self._check_entrapment()
+
+        # Compute soft entrapment state for reward modification
+        soft_entrapped = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        if self.entrapment_config.enabled:
+            # Compute flood-fill features for entrapment detection
+            flood_fill_features = self._get_flood_fill_features_for_entrapment()
+            soft_entrapped = self._compute_entrapment_state(flood_fill_features)
+
+            # Modify step reward for entrapped snakes (positive to encourage survival)
+            rewards[soft_entrapped] = self.entrapment_config.reward_step_entrapped
 
         # Check wall collisions
         wall_collision = (
@@ -262,8 +313,18 @@ class VectorizedSnakeEnv:
         # Update snakes
         self._update_snakes(new_heads, food_eaten, terminated)
 
-        # Update rewards for food
-        rewards[food_eaten] = self.reward_food
+        # Update rewards for food (with entrapment-aware modification)
+        if self.entrapment_config.enabled:
+            # Normal food reward for non-entrapped snakes
+            normal_food_mask = food_eaten & (~soft_entrapped)
+            rewards[normal_food_mask] = self.reward_food
+
+            # Modified (negative) food reward for entrapped snakes
+            # Discourages risky food chasing when in danger
+            entrapped_food_mask = food_eaten & soft_entrapped
+            rewards[entrapped_food_mask] = self.entrapment_config.reward_food_entrapped
+        else:
+            rewards[food_eaten] = self.reward_food
 
         # Distance-based rewards (only for non-terminated, non-food)
         if self.reward_distance:
@@ -308,7 +369,8 @@ class VectorizedSnakeEnv:
             'wall_deaths': (wall_collision & ~was_trapped).clone(),
             'self_deaths': (self_collision & ~was_trapped).clone(),
             'entrapments': entrapment.clone(),
-            'timeouts': truncated.clone()
+            'timeouts': truncated.clone(),
+            'soft_entrapped': soft_entrapped.clone(),  # Soft entrapment state for this step
         }
 
         # Auto-reset done environments
@@ -402,6 +464,80 @@ class VectorizedSnakeEnv:
 
         # Trapped if ALL directions blocked
         return blocked[0] & blocked[1] & blocked[2]
+
+    def _get_flood_fill_features_for_entrapment(self) -> torch.Tensor:
+        """
+        Compute flood-fill free space for all 3 directions (straight, right, left).
+
+        This method is used for entrapment detection. It returns the flood-fill
+        ratios for each direction, which can be used to determine if the snake
+        is in a "soft entrapment" state.
+
+        Returns:
+            (num_envs, 3) tensor: [straight, right, left] flood-fill ratios [0, 1]
+        """
+        deltas = torch.tensor([
+            [0, -1],  # UP
+            [1, 0],   # RIGHT
+            [0, 1],   # DOWN
+            [-1, 0]   # LEFT
+        ], device=self.device)
+
+        heads = self.snakes[:, 0, :]
+        flood_fill_features = torch.zeros((self.num_envs, 3), device=self.device)
+
+        # Compute flood-fill for straight (0), right (+1), left (-1)
+        for idx, offset in enumerate([0, 1, -1]):  # straight, right, left
+            check_dirs = (self.directions + offset) % 4
+            check_deltas = deltas[check_dirs]
+            next_pos = heads + check_deltas
+
+            # Check if position is safe (within bounds and not hitting self)
+            wall_safe = (
+                (next_pos[:, 0] >= 0) &
+                (next_pos[:, 0] < self.grid_size) &
+                (next_pos[:, 1] >= 0) &
+                (next_pos[:, 1] < self.grid_size)
+            )
+            body_safe = ~self._check_self_collision(next_pos)
+            safe = wall_safe & body_safe
+
+            # Compute flood-fill for safe positions
+            flood_fill_values = self._compute_flood_fill_vectorized(next_pos, safe)
+            flood_fill_features[:, idx] = flood_fill_values
+
+        return flood_fill_features
+
+    def _compute_entrapment_state(
+        self,
+        flood_fill_features: torch.Tensor = None
+    ) -> torch.Tensor:
+        """
+        Compute soft entrapment state based on flood-fill threshold.
+
+        Unlike _check_entrapment() which only detects complete blockage (all 3
+        directions blocked), this method detects "soft" entrapment when the
+        maximum reachable free space is below a configurable threshold.
+
+        Args:
+            flood_fill_features: Optional (num_envs, 3) tensor of flood-fill values
+                                [straight, right, left]. If None, computes them.
+
+        Returns:
+            (num_envs,) boolean tensor: True if entrapped (max free space < threshold)
+        """
+        if not self.entrapment_config.enabled:
+            return torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+
+        # Compute flood-fill features if not provided
+        if flood_fill_features is None:
+            flood_fill_features = self._get_flood_fill_features_for_entrapment()
+
+        # Snake is entrapped if MAX of all flood-fill values < threshold
+        max_free_space = flood_fill_features.max(dim=1)[0]  # (num_envs,)
+        entrapped = max_free_space < self.entrapment_config.threshold
+
+        return entrapped
 
     def _update_snakes(
         self,
@@ -510,18 +646,25 @@ class VectorizedSnakeEnv:
 
     def _get_feature_observations(self) -> torch.Tensor:
         """
-        Get feature observations (11, 14, 19, or 24-dimensional)
+        Get feature observations (10, 13, 14, 18, 19, 23, or 24-dimensional)
 
         Returns:
             (num_envs, feature_dim) tensor
         """
-        feature_dim = 10
-        if self.use_flood_fill:
-            feature_dim = 13
-        if self.use_selective_features:
-            feature_dim = 18  # Selective: tail features only
-        if self.use_enhanced_features:
-            feature_dim = 23  # All enhanced features
+        # Use pre-computed feature dimension from constructor
+        feature_dim = getattr(self, 'feature_dim', None)
+        if feature_dim is None:
+            # Fallback for backward compatibility
+            feature_dim = 10
+            if self.use_flood_fill:
+                feature_dim = 13
+            if self.use_selective_features:
+                feature_dim = 18  # Selective: tail features only
+            if self.use_enhanced_features:
+                feature_dim = 23  # All enhanced features
+            if self.entrapment_config.enabled and self.entrapment_config.include_feature:
+                feature_dim += 1
+
         obs = torch.zeros(
             (self.num_envs, feature_dim),
             dtype=torch.float32,
@@ -636,6 +779,13 @@ class VectorizedSnakeEnv:
             # 5. Snake length ratio (1 feature)
             max_length = self.grid_size * self.grid_size
             obs[:, 22] = self.snake_lengths.float() / max_length
+
+        # Add entrapped feature if enabled (always last feature)
+        if self.entrapment_config.enabled and self.entrapment_config.include_feature:
+            # Compute entrapment state using flood-fill
+            flood_fill_features = self._get_flood_fill_features_for_entrapment()
+            entrapped = self._compute_entrapment_state(flood_fill_features)
+            obs[:, -1] = entrapped.float()
 
         return obs
 
