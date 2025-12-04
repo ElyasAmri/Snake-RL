@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 # Import base trainer from non-curriculum version
-from train_ppo_two_snake_mlp import (
+from scripts.training.train_ppo_two_snake_mlp import (
     PPOConfig, TwoSnakePPOTrainer, TwoSnakePPOAgent, PPOBuffer
 )
 from core.utils import set_seed, get_device
@@ -39,6 +39,7 @@ class CurriculumStage:
     opponent_type: str  # 'static', 'random', 'greedy', 'frozen', 'learning'
     target_food: int  # Food count required to win
     min_steps: int
+    max_steps: int  # Maximum steps before forced advancement
     win_rate_threshold: Optional[float]
     description: str
     agent2_trains: bool = False
@@ -76,13 +77,16 @@ class CurriculumPPOTrainer(TwoSnakePPOTrainer):
                 print(f"Warning: Could not load {agent_type} agent: {e}", flush=True)
 
         # Define curriculum stages with progressive difficulty
+        # max_steps prevents infinite loops if threshold is too hard to reach
+        # Steps sized for ~30 min total training budget (~1.5M total steps)
         self.stages = [
             CurriculumStage(
                 stage_id=0,
                 name="Stage0_Static",
                 opponent_type="static",
                 target_food=10,  # Easy: static opponent doesn't move
-                min_steps=5000,  # OPTIMIZED: Reduced 75% (was 20K)
+                min_steps=100000,  # ~2 min
+                max_steps=200000,  # Safety limit
                 win_rate_threshold=0.70,
                 description="Learn basic movement vs static opponent (target: 10 food)",
                 agent2_trains=False
@@ -92,7 +96,8 @@ class CurriculumPPOTrainer(TwoSnakePPOTrainer):
                 name="Stage1_Random",
                 opponent_type="random",
                 target_food=10,  # Medium: random opponent is inefficient
-                min_steps=7500,  # OPTIMIZED: Reduced 62.5% (was 20K)
+                min_steps=100000,  # ~2 min
+                max_steps=200000,  # Safety limit
                 win_rate_threshold=0.60,
                 description="Handle unpredictability vs random opponent (target: 10 food)",
                 agent2_trains=False
@@ -101,9 +106,10 @@ class CurriculumPPOTrainer(TwoSnakePPOTrainer):
                 stage_id=2,
                 name="Stage2_Greedy",
                 opponent_type="greedy",
-                target_food=4,  # FIXED: Reduced from 10 (greedy opponent is very effective)
-                min_steps=10000,  # OPTIMIZED: Reduced 67% (was 30K)
-                win_rate_threshold=0.55,
+                target_food=4,  # Reduced: greedy opponent is very effective at food
+                min_steps=200000,  # ~4 min
+                max_steps=400000,  # Safety limit - BFS greedy is very hard to beat
+                win_rate_threshold=0.05,  # Very low: BFS greedy is nearly unbeatable
                 description="Compete for food vs greedy opponent (target: 4 food)",
                 agent2_trains=False
             ),
@@ -111,9 +117,10 @@ class CurriculumPPOTrainer(TwoSnakePPOTrainer):
                 stage_id=3,
                 name="Stage3_Frozen",
                 opponent_type="frozen",
-                target_food=6,  # FIXED: Progressive difficulty (harder than greedy)
-                min_steps=10000,  # OPTIMIZED: Reduced 67% (was 30K)
-                win_rate_threshold=0.50,
+                target_food=6,  # Progressive difficulty
+                min_steps=200000,  # ~4 min
+                max_steps=400000,  # Safety limit
+                win_rate_threshold=0.30,  # Achievable with enough training
                 description="Compete against frozen policy (target: 6 food)",
                 agent2_trains=False
             ),
@@ -121,8 +128,9 @@ class CurriculumPPOTrainer(TwoSnakePPOTrainer):
                 stage_id=4,
                 name="Stage4_CoEvolution",
                 opponent_type="learning",
-                target_food=8,  # FIXED: Progressive difficulty (both learning together)
-                min_steps=20000,  # OPTIMIZED: Reduced 87% (was 150K)
+                target_food=8,  # Both agents learning together
+                min_steps=300000,  # ~6 min
+                max_steps=400000,  # Safety limit
                 win_rate_threshold=None,  # No threshold - trains for full duration
                 description="Full co-evolution training (target: 8 food)",
                 agent2_trains=True
@@ -174,6 +182,11 @@ class CurriculumPPOTrainer(TwoSnakePPOTrainer):
         if self.stage_steps < stage.min_steps:
             return False
 
+        # Check max_steps limit (prevents infinite loops)
+        if self.stage_steps >= stage.max_steps:
+            print(f"[MAX STEPS] Stage {stage.stage_id} reached max_steps={stage.max_steps}, advancing...", flush=True)
+            return True
+
         # Final stage - no threshold, just meet min_steps
         if stage.win_rate_threshold is None:
             return True  # FIX: Stop after min_steps when no threshold
@@ -193,6 +206,7 @@ class CurriculumPPOTrainer(TwoSnakePPOTrainer):
         print(f"Opponent: {stage.opponent_type}", flush=True)
         print(f"Target food: {stage.target_food}", flush=True)
         print(f"Min steps: {stage.min_steps:,}", flush=True)
+        print(f"Max steps: {stage.max_steps:,}", flush=True)
         print(f"Win rate threshold: {stage.win_rate_threshold}", flush=True)
         print(f"Description: {stage.description}", flush=True)
         print(f"Agent2 trains: {stage.agent2_trains}", flush=True)

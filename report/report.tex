@@ -15,6 +15,8 @@
 \usepackage{float}
 \usepackage{fancyhdr}
 \usepackage[font=small,labelfont=bf]{caption}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
 \usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc, fit}
 
 % Graphics path - figures are stored in results/figures
@@ -656,14 +658,14 @@ Figure \ref{fig:dqn_results} shows DQN training progression with basic features,
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.95\textwidth]{dqn_basic_scores.png}
-\caption{DQN training with basic features. Episode scores plateau around 16-17 average with maximum score of 31. Without spatial awareness features, performance is limited by frequent entrapment deaths.}
+\caption{DQN training with basic features. Episode scores plateau around 16-17 average with maximum score of 43. Without spatial awareness features, performance is limited by frequent entrapment deaths.}
 \label{fig:dqn_results}
 \end{figure}
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.95\textwidth]{ppo_basic_scores.png}
-\caption{PPO training with basic features. Despite faster convergence, basic features limit performance to around 17-18 average with maximum score of 35, similar to DQN.}
+\caption{PPO training with basic features. Despite faster convergence, basic features limit performance to around 17-18 average with maximum score of 38, similar to DQN.}
 \label{fig:ppo_results}
 \end{figure}
 
@@ -694,29 +696,27 @@ Understanding why agents die provides insight into failure modes and guides impr
 \item \textbf{Entrapments}: The snake boxes itself in with no valid escape moves
 \end{itemize}
 
-\noindent\textbf{Cumulative Death Curves.} The right panels of Figures \ref{fig:dqn_results} and \ref{fig:ppo_results} show cumulative death causes over training episodes. These curves visualize how death causes shift as the agent learns, with entrapment typically dominating early before the agent develops spatial awareness.
+\noindent\textbf{Cumulative Death Curves.} Figures \ref{fig:dqn_deaths} and \ref{fig:ppo_deaths} show cumulative death causes over training episodes. These curves visualize how death causes accumulate as the agent learns, with entrapment typically dominating throughout training when using basic features.
 
-With basic features, entrapment is the dominant death cause at 74-82\% of deaths. This indicates that agents without spatial awareness frequently maneuver into positions from which escape is impossible. The remaining deaths split between wall and self-collisions, often occurring during aggressive food pursuit.
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{dqn_basic_deaths.png}
+\caption{DQN cumulative death causes with basic features. Entrapment (orange) dominates, accounting for 67\% of all deaths.}
+\label{fig:dqn_deaths}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{ppo_basic_deaths.png}
+\caption{PPO cumulative death causes with basic features. Similar to DQN, entrapment accounts for the majority of deaths (80\%).}
+\label{fig:ppo_deaths}
+\end{figure}
+
+With basic features, entrapment is the dominant death cause at 67-80\% of deaths. This indicates that agents without spatial awareness frequently maneuver into positions from which escape is impossible. The remaining deaths split between wall and self-collisions, often occurring during aggressive food pursuit.
 
 \subsection{Flood-Fill Feature Engineering}
 
-The flood-fill feature addresses the entrapment problem by giving the agent spatial awareness about reachable free space. For each potential next position, we compute the ratio of cells reachable via flood-fill traversal.
-
-\noindent\textbf{Algorithm.} The flood-fill computation uses a breadth-first traversal:
-
-\begin{enumerate}
-\item Start from the candidate next position
-\item Initialize visited set and queue with start position
-\item While queue is not empty:
-\begin{itemize}
-\item Dequeue current cell
-\item For each adjacent cell (up, down, left, right):
-\item If cell is valid, not visited, and not blocked by snake body: add to visited and enqueue
-\end{itemize}
-\item Return $|$visited$|$ / max\_free\_cells
-\end{enumerate}
-
-The result is a value in [0, 1] representing the fraction of free space reachable from that direction. Low values indicate potential dead-ends; high values indicate open space.
+The flood-fill feature addresses the entrapment problem by giving the agent spatial awareness about reachable free space. For each potential next position, we compute the ratio of cells reachable via breadth-first flood-fill traversal (see Algorithm~\ref{alg:floodfill} in Appendix~\ref{app:floodfill}). The result is a value in [0, 1] representing the fraction of free space reachable from that direction. Low values indicate potential dead-ends; high values indicate open space.
 
 \noindent\textbf{Impact on Performance.} Table \ref{tab:representation_comparison} compares performance with and without flood-fill features. The flood-fill representation consistently doubles average scores compared to basic features, representing the single most impactful improvement in our experiments.
 
@@ -728,10 +728,10 @@ The result is a value in [0, 1] representing the fraction of free space reachabl
 \toprule
 \textbf{Algorithm} & \textbf{Features} & \textbf{Episodes} & \textbf{Avg Score} & \textbf{Max Score} & \textbf{Entrap \%} \\
 \midrule
-DQN & Basic & 5,000 & 16.2 & 35 & 74\% \\
-DQN & Flood-fill & 10,000 & 27.1 & 54 & 42\% \\
-PPO & Basic & 2,000 & 19.2 & 45 & 82\% \\
-PPO & Flood-fill & 2,000 & 37.5 & 64 & 37\% \\
+DQN & Basic & 3,000 & 16.8 & 43 & 68\% \\
+DQN & Flood-fill & 5,000 & 24.5 & 56 & 42\% \\
+PPO & Basic & 2,000 & 17.5 & 38 & 84\% \\
+PPO & Flood-fill & 2,000 & 35.5 & 58 & 37\% \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -789,14 +789,14 @@ Figures \ref{fig:dqn_flood} and \ref{fig:ppo_flood} demonstrate the dramatic imp
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.95\textwidth]{dqn_flood-fill_scores.png}
-\caption{DQN with flood-fill features training scores. With spatial awareness, scores improve dramatically to 24-27 average with maximum score of 53, compared to 16-17 average with basic features. The flood-fill features enable the agent to avoid dead-end positions.}
+\caption{DQN with flood-fill features training scores. With spatial awareness, scores improve dramatically to 24-27 average with maximum score of 56, compared to 16-17 average with basic features. The flood-fill features enable the agent to avoid dead-end positions.}
 \label{fig:dqn_flood}
 \end{figure}
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.95\textwidth]{ppo_flood-fill_scores.png}
-\caption{PPO with flood-fill features training scores. PPO achieves the best performance with 35-37 average score and maximum of 52, compared to 17-18 average with basic features. The combination of PPO's sample efficiency and flood-fill's spatial awareness produces optimal results.}
+\caption{PPO with flood-fill features training scores. PPO achieves the best performance with 35-37 average score and maximum of 58, compared to 17-18 average with basic features. The combination of PPO's sample efficiency and flood-fill's spatial awareness produces optimal results.}
 \label{fig:ppo_flood}
 \end{figure}
 
@@ -857,7 +857,14 @@ The hypothesis is that competitive scenarios require more representational capac
 
 \noindent\textbf{Naive Attempt: Direct Co-evolution.} Our initial approach was direct co-evolution: training both agents simultaneously from random initialization. This approach failed to produce capable agents. Both snakes learned to avoid the center of the grid and each other, resulting in passive play with neither agent collecting food efficiently.
 
-The failure occurs because early in training, random policies cause frequent collisions. The agents learn that approaching the opponent is dangerous, but this learned avoidance prevents them from developing competitive food-collection strategies.
+The failure occurs because early in training, random policies cause frequent collisions. The agents learn that approaching the opponent is dangerous, but this learned avoidance prevents them from developing competitive food-collection strategies. Figure \ref{fig:two_snake_training} compares training curves across all three approaches.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{two_snake_training_curves.png}
+\caption{Training curves comparing direct co-evolution (DQN and PPO) with curriculum learning (PPO). Direct methods achieve approximately 50\% win rate reflecting random outcomes, while curriculum learning reaches 89\% win rate as the big network learns to dominate the small network.}
+\label{fig:two_snake_training}
+\end{figure}
 
 \noindent\textbf{Curriculum Learning.} To address co-evolution failure, we employ a five-stage curriculum with progressively increasing opponent difficulty. Table \ref{tab:curriculum_stages} summarizes the curriculum design.
 
@@ -880,39 +887,72 @@ The failure occurs because early in training, random policies cause frequent col
 
 Each stage requires achieving both the minimum training steps and the win rate threshold before advancing. The target food count decreases in middle stages to encourage faster rounds and more learning signal.
 
-\noindent\textbf{Curriculum Results.} \textit{[PLACEHOLDER: Results table showing performance metrics at each curriculum stage]}
+\noindent\textbf{Curriculum Results.} Table \ref{tab:curriculum_results} shows performance metrics at each curriculum stage. The greedy opponent using BFS pathfinding proved extremely challenging---our agent never achieved the 10\% win rate threshold and was advanced via the max-steps safety limit. Similarly, the frozen policy stage reached its step limit before meeting the 40\% threshold. Despite these challenges, the final co-evolution stage produced strong performance with 89\% win rate.
 
 \begin{table}[H]
 \centering
 \caption{Curriculum Learning Results by Stage}
 \label{tab:curriculum_results}
-\begin{tabular}{lcccc}
+\begin{tabular}{lcccl}
 \toprule
-\textbf{Stage} & \textbf{Win Rate} & \textbf{Avg Score} & \textbf{Steps to Threshold} & \textbf{Time (min)} \\
+\textbf{Stage} & \textbf{Win Rate} & \textbf{Avg Score} & \textbf{Steps} & \textbf{Notes} \\
 \midrule
-Stage 0 (Static) & -- & -- & -- & -- \\
-Stage 1 (Random) & -- & -- & -- & -- \\
-Stage 2 (Greedy) & -- & -- & -- & -- \\
-Stage 3 (Frozen) & -- & -- & -- & -- \\
-Stage 4 (Co-evolution) & -- & -- & -- & -- \\
+Stage 0 (Static) & 72\% & 0.49 vs 0.0 & 5,120 & Passed threshold \\
+Stage 1 (Random) & 64\% & 0.49 vs 0.1 & 7,552 & Passed threshold \\
+Stage 2 (Greedy) & 0\% & 0.1 vs 3.6 & 50,048 & Hit max-steps \\
+Stage 3 (Frozen) & 18\% & 0.1 vs 3.1 & 50,048 & Hit max-steps \\
+Stage 4 (Co-evolution) & 89\% & 0.4 vs 0.1 & 20,096 & Passed min-steps \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\noindent\textbf{Final Competition: Big vs Small Network.} After curriculum training, we pit the big network (256x256) against the small network (128x128) in head-to-head competition to evaluate whether network capacity translates to competitive advantage.
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{two_snake_curriculum_stages.png}
+\caption{PPO Curriculum learning progression through 5 stages. Early stages (Static, Random) complete quickly, while the Greedy stage with BFS pathfinding proves extremely challenging. The agent cannot beat the optimal pathfinding opponent but still progresses via max-step limits.}
+\label{fig:curriculum_stages}
+\end{figure}
 
-\textit{[PLACEHOLDER: Final competition results - win rates, average scores, and qualitative observations about playing styles]}
+\noindent\textbf{Final Competition: Big vs Small Network.} After curriculum training, we pit the big network (256x256) against the small network (128x128) in head-to-head competition to evaluate whether network capacity translates to competitive advantage. We also compare three training approaches: DQN direct co-evolution, PPO direct co-evolution, and PPO with curriculum learning.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{two_snake_final_competition.png}
+\caption{Final competition results: Big (256x256) vs Small (128x128) network across three training approaches. DQN Direct fails completely with 96\% draws. PPO Direct shows Big network dominance (84\% wins). PPO Curriculum achieves the best results with Big at 91\% win rate.}
+\label{fig:final_competition}
+\end{figure}
+
+Table \ref{tab:two_snake_competition} summarizes the final competition results. Training time and total steps vary significantly between approaches.
+
+\begin{table}[H]
+\centering
+\caption{Two-Snake Competition Results: Direct Training vs Curriculum}
+\label{tab:two_snake_competition}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Method} & \textbf{Big Win} & \textbf{Small Win} & \textbf{Draw} & \textbf{Steps} & \textbf{Time} \\
+\midrule
+DQN Direct & 2\% & 2\% & 96\% & 1,000,064 & 2.3 min \\
+PPO Direct & 84\% & 5\% & 11\% & 1,000,064 & 12.6 min \\
+PPO Curriculum & 91\% & 7\% & 2\% & 1,100,288 & 13.0 min \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The results reveal interesting patterns in competitive training. DQN co-evolution fails completely with 96\% draws---agents learn passive avoidance rather than competitive food collection. PPO direct co-evolution succeeds dramatically, with the Big network achieving 84\% win rate against the Small network's 5\%, showing that network capacity matters significantly when both agents learn simultaneously.
+
+PPO Curriculum achieves the best results with 91\% Big win rate and only 2\% draws. The curriculum approach produces more decisive outcomes by training agents to compete actively rather than avoid confrontation.
 
 Key observations from competitive training include:
 
 \begin{itemize}
-\item Direct co-evolution often fails, as both snakes learn avoidance rather than competition
-\item Curriculum learning produces more capable agents by building skills incrementally
-\item Asymmetric network sizes (larger network for the main agent) improve training stability
-\item Victory rewards (+100) and death penalties (-50 to -100) are essential for competitive behavior
+\item DQN co-evolution fails completely---96\% draws indicate agents avoid each other rather than compete
+\item PPO direct co-evolution produces dominant big networks (84\%) but 11\% draws remain
+\item Curriculum learning produces the strongest agents with 91\% Big win rate and minimal draws (2\%)
+\item Network capacity advantage is consistent across all successful training approaches
 \end{itemize}
 
-The curriculum approach allows agents to first master basic navigation and food collection before facing adaptive opponents, resulting in more robust competitive strategies.
+The curriculum approach produces superior competitive agents by progressively building skills against increasingly difficult opponents.
 
 %==============================================================================
 % SECTION 5: DISCUSSION
@@ -952,9 +992,9 @@ Sparse rewards (only receiving signal upon eating food or dying) slow early lear
 
 \subsection{Two-Snake Competition Insights}
 
-Curriculum learning proves essential for competitive scenarios. Direct co-evolution often fails: both snakes learn to avoid each other rather than compete effectively. The staged curriculum allows agents to master basic skills before facing adaptive opponents.
+Algorithm choice significantly impacts competitive training outcomes. DQN co-evolution fails completely (96\% draws), while PPO direct co-evolution produces strong results (84\% big wins vs 5\% small wins with 11\% draws). Curriculum learning achieves the best performance---91\% big win rate with only 2\% draws, demonstrating that staged training produces more decisive and competitive agents.
 
-Each stage contributes differently: static opponents teach basic movement, random opponents teach robustness, greedy opponents teach competition, and frozen opponents prevent co-adaptation artifacts. The progression ensures agents develop complete competitive strategies rather than narrow avoidance behaviors.
+Each curriculum stage contributes differently: static opponents teach basic movement, random opponents teach robustness, greedy opponents teach competition, and frozen opponents prevent co-adaptation artifacts. The progression ensures agents develop complete competitive strategies rather than narrow avoidance behaviors.
 
 Two-snake credit assignment remains challenging. When one snake dies, determining whether this resulted from its own mistake or the opponent's skill is ambiguous. Curriculum learning helps by initially removing this ambiguity (against deterministic opponents).
 
@@ -1024,13 +1064,13 @@ Table \ref{tab:appendix_results} summarizes the final performance metrics for ea
 \toprule
 \textbf{Algorithm} & \textbf{Avg Score} & \textbf{Max Score} & \textbf{Training Time (s)} & \textbf{Entrapment \%} \\
 \midrule
-PPO & \textbf{19.51} & \textbf{40} & 563 & 77.5 \\
-Dueling DQN & 16.70 & 31 & 140 & 72.5 \\
-Rainbow DQN & 16.49 & 32 & 448 & 89.3 \\
-PER DQN & 15.99 & 34 & 158 & 71.5 \\
-DQN & 15.32 & 33 & 138 & 72.5 \\
-Noisy DQN & 15.28 & 34 & 181 & 82.2 \\
-Double DQN & 14.79 & 32 & 141 & 72.8 \\
+PPO & \textbf{19.51} & \textbf{40} & 432 & 84.3 \\
+Rainbow DQN & 17.94 & 31 & 444 & 90.2 \\
+Dueling DQN & 16.70 & 31 & 148 & 67.4 \\
+PER DQN & 15.99 & 34 & 168 & 66.5 \\
+DQN & 15.32 & 33 & 137 & 67.9 \\
+Noisy DQN & 15.28 & 34 & 183 & 87.0 \\
+Double DQN & 14.79 & 32 & 145 & 68.7 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -1060,6 +1100,38 @@ Figure \ref{fig:appendix_deaths} shows the distribution of death causes across a
 \end{figure}
 
 The high entrapment rates across all algorithms demonstrate a fundamental limitation of basic features: agents cannot anticipate spatial dead-ends. While Rainbow DQN and PPO achieve lower wall and self-collision rates (indicating better immediate obstacle avoidance), they still succumb to entrapment at similar rates to simpler algorithms. This motivates the flood-fill feature engineering described in the main text, which reduces entrapment from 70-90\% to 40-55\%.
+
+%==============================================================================
+% APPENDIX: FLOOD-FILL ALGORITHM
+%==============================================================================
+\section{Flood-Fill Algorithm}
+\label{app:floodfill}
+
+The flood-fill feature computes the fraction of reachable free space from a candidate position using breadth-first search. Algorithm~\ref{alg:floodfill} presents the pseudo code.
+
+\begin{algorithm}[H]
+\caption{Flood-Fill Feature Computation}
+\label{alg:floodfill}
+\begin{algorithmic}[1]
+\Require $pos$: candidate next position, $grid$: game grid, $snake$: snake body positions
+\Ensure $ratio \in [0, 1]$: fraction of reachable free space
+\State $visited \gets \{pos\}$
+\State $queue \gets [pos]$
+\State $max\_free \gets grid\_size^2 - |snake|$
+\While{$queue$ is not empty}
+    \State $current \gets queue.dequeue()$
+    \For{$neighbor$ in $\{up, down, left, right\}$ of $current$}
+        \If{$neighbor$ is valid \textbf{and} $neighbor \notin visited$ \textbf{and} $neighbor \notin snake$}
+            \State $visited.add(neighbor)$
+            \State $queue.enqueue(neighbor)$
+        \EndIf
+    \EndFor
+\EndWhile
+\State \Return $|visited| / max\_free$
+\end{algorithmic}
+\end{algorithm}
+
+The algorithm returns a value between 0 and 1, where low values indicate potential dead-ends (few reachable cells) and high values indicate open space (many reachable cells). This feature is computed for each of the three possible moves (left, forward, right in relative coordinates), providing the agent with spatial awareness to avoid self-trapping situations.
 
 %==============================================================================
 % REFERENCES

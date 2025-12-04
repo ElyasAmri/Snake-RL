@@ -1,7 +1,11 @@
 """
-Generate score-only plots for the report.
+Generate score and death cause plots for the report.
 
-Trains models and creates single-panel score plots (without death causes) for:
+Trains models and creates:
+- Score plots for all configurations
+- Death cause plots for basic feature configurations (for death investigation section)
+
+Configurations:
 - DQN basic
 - PPO basic
 - DQN flood-fill
@@ -68,6 +72,42 @@ def plot_score_only(name: str, scores: list, output_path: Path):
     print(f"Saved: {output_path}")
 
 
+def plot_cumulative_deaths(name: str, metrics, output_path: Path):
+    """Generate cumulative death cause plot with separate lines"""
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    wall_cumsum = np.cumsum(metrics.wall_deaths_per_episode)
+    self_cumsum = np.cumsum(metrics.self_deaths_per_episode)
+    entrap_cumsum = np.cumsum(metrics.entrapments_per_episode)
+
+    episodes = range(1, len(wall_cumsum) + 1)
+
+    ax.plot(episodes, wall_cumsum, linewidth=2, label='Wall', color='red')
+    ax.plot(episodes, self_cumsum, linewidth=2, label='Self', color='blue')
+    ax.plot(episodes, entrap_cumsum, linewidth=2, label='Entrapment', color='orange')
+
+    ax.set_xlabel('Episode', fontsize=12)
+    ax.set_ylabel('Cumulative Deaths', fontsize=12)
+    ax.set_title(f'{name} - Cumulative Death Causes', fontsize=14)
+    ax.legend(loc='upper left', fontsize=10)
+    ax.grid(True, alpha=0.3)
+    ax.set_xlim(1, len(episodes))
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    plt.close()
+
+    print(f"Saved: {output_path}")
+
+    total = len(metrics.wall_deaths_per_episode)
+    return {
+        'wall': sum(metrics.wall_deaths_per_episode) / total * 100,
+        'self': sum(metrics.self_deaths_per_episode) / total * 100,
+        'entrapment': sum(metrics.entrapments_per_episode) / total * 100,
+        'timeout': sum(metrics.timeouts_per_episode) / total * 100
+    }
+
+
 def train_and_plot(algorithm: str, use_flood_fill: bool, num_episodes: int, output_dir: Path):
     """Train a model and generate score-only plot"""
 
@@ -126,20 +166,30 @@ def train_and_plot(algorithm: str, use_flood_fill: bool, num_episodes: int, outp
     scores = trainer.metrics.episode_scores
     plot_score_only(name, scores, output_dir / output_file)
 
-    # Save scores to JSON for future use
+    # Generate death cause plot for basic features (death investigation section)
+    death_stats = None
+    if not use_flood_fill:
+        death_output = f"{algorithm.lower()}_{feature_name}_deaths.png"
+        death_stats = plot_cumulative_deaths(name, trainer.metrics, output_dir / death_output)
+        print(f"  Death breakdown: Wall {death_stats['wall']:.1f}%, Self {death_stats['self']:.1f}%, Entrap {death_stats['entrapment']:.1f}%")
+
+    # Save data to JSON
     data_dir = Path('results/data')
     data_dir.mkdir(parents=True, exist_ok=True)
 
     json_path = data_dir / f"{algorithm.lower()}_{feature_name}_scores.json"
+    data = {
+        'algorithm': algorithm,
+        'features': feature_name,
+        'num_episodes': num_episodes,
+        'scores': scores,
+        'max_score': max(scores),
+        'avg_score_last_100': np.mean(scores[-100:]) if len(scores) >= 100 else np.mean(scores),
+    }
+    if death_stats:
+        data['death_stats'] = death_stats
     with open(json_path, 'w') as f:
-        json.dump({
-            'algorithm': algorithm,
-            'features': feature_name,
-            'num_episodes': num_episodes,
-            'scores': scores,
-            'max_score': max(scores),
-            'avg_score_last_100': np.mean(scores[-100:]) if len(scores) >= 100 else np.mean(scores),
-        }, f, indent=2)
+        json.dump(data, f, indent=2)
     print(f"Saved data: {json_path}")
 
     return scores

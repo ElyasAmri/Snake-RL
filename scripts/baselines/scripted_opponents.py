@@ -85,9 +85,11 @@ class GreedyFoodAgent(ScriptedAgent):
             obstacles = set(map(tuple, snake1_body)) | set(map(tuple, snake2_body))
 
             # BFS to find shortest path
+            # Use grid_width (assuming square grid, or use min of both for safety)
+            grid_size = getattr(env, 'grid_size', None) or env.grid_width
             action = self._bfs_to_food(
                 tuple(head), tuple(food), direction,
-                env.grid_size, obstacles
+                grid_size, obstacles
             )
             actions[env_idx] = action
 
@@ -241,9 +243,10 @@ class DefensiveAgent(ScriptedAgent):
             snake2_body = env.snakes2[env_idx, :env.lengths2[env_idx]].cpu().numpy()
             obstacles = set(map(tuple, snake1_body)) | set(map(tuple, snake2_body))
 
-            # Calculate space control
-            my_space = self._flood_fill(tuple(head), env.grid_size, obstacles - {tuple(head)})
-            opponent_space = self._flood_fill(tuple(opponent_head), env.grid_size, obstacles - {tuple(opponent_head)})
+            # Calculate space control (use grid_width for square grids)
+            grid_size = getattr(env, 'grid_size', None) or env.grid_width
+            my_space = self._flood_fill(tuple(head), grid_size, obstacles - {tuple(head)})
+            opponent_space = self._flood_fill(tuple(opponent_head), grid_size, obstacles - {tuple(opponent_head)})
 
             total_free = my_space + opponent_space
             my_ratio = my_space / max(total_free, 1)
@@ -251,12 +254,12 @@ class DefensiveAgent(ScriptedAgent):
             # Decide strategy
             if my_ratio < self.safety_threshold:
                 # Defensive: seek maximum space
-                action = self._seek_space(tuple(head), direction, env.grid_size, obstacles)
+                action = self._seek_space(tuple(head), direction, grid_size, obstacles)
             else:
                 # Aggressive: go for food
                 action = self._seek_food_cautiously(
                     tuple(head), tuple(food), tuple(opponent_head),
-                    direction, env.grid_size, obstacles
+                    direction, grid_size, obstacles
                 )
 
             actions[env_idx] = action
