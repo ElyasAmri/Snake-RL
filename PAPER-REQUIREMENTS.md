@@ -17,7 +17,7 @@ This file provides guidelines to writing the report for this project (report/rep
 
 * Report must be populated with figures (long discussions are boring)
 * No subsubsections (x.x.x)
-* 20 - 30 pages
+* 20 - 40 pages
 * Search papers using Websearch and paper-search MCP
 * For every paper you cite, make sure it is reachable (verify with a subagent)
 * Everytime you edit the report, run a critical reviewer to review

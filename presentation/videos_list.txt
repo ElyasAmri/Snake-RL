@@ -1,0 +1,48 @@
+Demo Scripts for Presentation
+==============================
+
+Run each script to show a live demo during the presentation.
+All demos use SEED=67 for deterministic, repeatable behavior.
+
+Slide: Basic DQN Agent
+  Script: ./venv/Scripts/python.exe scripts/demo/01_demo_basic_dqn.py
+  Description: Basic DQN agent with 10-dim features
+  Narrative: "Trained with 10-dimensional feature vector"
+
+Slide: Training Without Replay
+  Script: ./venv/Scripts/python.exe scripts/demo/02_demo_training_comparison.py --mode no_replay
+  Description: Live training WITHOUT experience replay
+  Narrative: "Only learns 'avoid walls', forgets how to get food"
+
+Slide: Training With Experience Replay
+  Script: ./venv/Scripts/python.exe scripts/demo/02_demo_training_comparison.py --mode with_replay
+  Description: Live training WITH experience replay
+  Narrative: "Random sample from all, learns everything together"
+
+Slide: PPO Agent Demo
+  Script: ./venv/Scripts/python.exe scripts/demo/03_demo_ppo.py
+  Description: PPO agent with Actor-Critic architecture
+  Narrative: "PPO agent trained with basic features"
+
+Slide: Why Do Agents Die?
+  Image: figures/death_causes.png
+  Description: Death Causes Analysis (static image)
+
+Slide: Flood-Fill Features (13 dimensions)
+  Script: ./venv/Scripts/python.exe scripts/demo/04_demo_floodfill.py
+  Description: Agent with 14-dim flood-fill features
+  Narrative: "Agent avoiding traps, better spatial awareness"
+
+Slide: How to Speed Up Training?
+  Image: figures/training_time.png
+  Description: Training Time Comparison (static image)
+
+Slide: Self-Play Results
+  Script: ./venv/Scripts/python.exe scripts/demo/05_demo_selfplay.py
+  Description: Naive self-play (both agents struggle)
+  Narrative: "Both agents struggle to learn meaningful behavior"
+
+Slide: Competitive Match Demo
+  Script: ./venv/Scripts/python.exe scripts/demo/06_demo_competitive.py
+  Description: Curriculum-trained competitive match
+  Narrative: "Trained agents competing head-to-head"
