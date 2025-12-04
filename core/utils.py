@@ -276,6 +276,292 @@ class PrioritizedReplayBuffer:
         return self.tree.n_entries >= min_size
 
 
+class NStepReplayBuffer:
+    """
+    N-Step Replay Buffer for Rainbow DQN
+
+    Stores transitions and computes n-step returns:
+    R_n = r_t + gamma*r_{t+1} + gamma^2*r_{t+2} + ... + gamma^{n-1}*r_{t+n-1}
+
+    The buffer accumulates n transitions before storing the full n-step transition.
+    """
+
+    def __init__(
+        self,
+        capacity: int,
+        n_step: int = 3,
+        gamma: float = 0.99,
+        seed: Optional[int] = None
+    ):
+        """
+        Initialize N-step replay buffer
+
+        Args:
+            capacity: Maximum number of n-step transitions to store
+            n_step: Number of steps for n-step returns
+            gamma: Discount factor
+            seed: Random seed for reproducibility
+        """
+        self.buffer = deque(maxlen=capacity)
+        self.n_step_buffer = deque(maxlen=n_step)
+        self.capacity = capacity
+        self.n_step = n_step
+        self.gamma = gamma
+
+        if seed is not None:
+            random.seed(seed)
+            np.random.seed(seed)
+
+    def _compute_n_step_return(self) -> Tuple[np.ndarray, int, float, np.ndarray, bool]:
+        """
+        Compute n-step return from accumulated transitions
+
+        Returns:
+            (first_state, first_action, n_step_reward, last_next_state, done)
+        """
+        # Get first transition
+        first_state, first_action, _, _, _ = self.n_step_buffer[0]
+
+        # Compute n-step discounted reward
+        n_step_reward = 0.0
+        for i, (_, _, reward, _, done) in enumerate(self.n_step_buffer):
+            n_step_reward += (self.gamma ** i) * reward
+            if done:
+                break
+
+        # Get last transition's next_state and done
+        _, _, _, last_next_state, last_done = self.n_step_buffer[-1]
+
+        return first_state, first_action, n_step_reward, last_next_state, last_done
+
+    def push(
+        self,
+        state: np.ndarray,
+        action: int,
+        reward: float,
+        next_state: np.ndarray,
+        done: bool
+    ):
+        """
+        Add a transition to the n-step buffer
+
+        When n transitions are accumulated, compute n-step return and store
+        """
+        self.n_step_buffer.append((state, action, reward, next_state, done))
+
+        # If episode ends early, flush remaining transitions
+        if done:
+            while len(self.n_step_buffer) > 0:
+                n_step_transition = self._compute_n_step_return()
+                self.buffer.append(n_step_transition)
+                self.n_step_buffer.popleft()
+        # Store n-step transition when buffer is full
+        elif len(self.n_step_buffer) == self.n_step:
+            n_step_transition = self._compute_n_step_return()
+            self.buffer.append(n_step_transition)
+
+    def sample(self, batch_size: int) -> Tuple[torch.Tensor, ...]:
+        """
+        Sample a batch of n-step transitions
+
+        Returns:
+            Tuple of (states, actions, n_step_rewards, next_states, dones) as tensors
+        """
+        batch = random.sample(self.buffer, batch_size)
+
+        states, actions, rewards, next_states, dones = zip(*batch)
+
+        # Convert to tensors
+        states = torch.FloatTensor(np.array(states))
+        actions = torch.LongTensor(actions)
+        rewards = torch.FloatTensor(rewards)
+        next_states = torch.FloatTensor(np.array(next_states))
+        dones = torch.FloatTensor(dones)
+
+        return states, actions, rewards, next_states, dones
+
+    def reset_n_step_buffer(self):
+        """Reset the n-step accumulation buffer (call at episode start)"""
+        self.n_step_buffer.clear()
+
+    def __len__(self) -> int:
+        """Return current buffer size"""
+        return len(self.buffer)
+
+    def is_ready(self, min_size: int) -> bool:
+        """Check if buffer has enough samples to start training"""
+        return len(self.buffer) >= min_size
+
+
+class PrioritizedNStepReplayBuffer:
+    """
+    Prioritized N-Step Replay Buffer for Rainbow DQN
+
+    Combines prioritized experience replay with n-step returns.
+    Uses sum-tree for efficient priority-based sampling.
+    Supports vectorized environments with per-env n-step buffers.
+    """
+
+    def __init__(
+        self,
+        capacity: int,
+        n_step: int = 3,
+        gamma: float = 0.99,
+        alpha: float = 0.6,
+        beta_start: float = 0.4,
+        beta_frames: int = 100000,
+        num_envs: int = 1,
+        seed: Optional[int] = None
+    ):
+        """
+        Initialize prioritized n-step replay buffer
+
+        Args:
+            capacity: Maximum number of transitions to store
+            n_step: Number of steps for n-step returns
+            gamma: Discount factor
+            alpha: Priority exponent (0 = uniform, 1 = full prioritization)
+            beta_start: Initial importance sampling weight
+            beta_frames: Number of frames to anneal beta to 1.0
+            num_envs: Number of parallel environments (for vectorized training)
+            seed: Random seed for reproducibility
+        """
+        self.tree = SumTree(capacity)
+        self.num_envs = num_envs
+        # Separate n-step buffer for each environment
+        self.n_step_buffers = [deque(maxlen=n_step) for _ in range(num_envs)]
+        self.capacity = capacity
+        self.n_step = n_step
+        self.gamma = gamma
+        self.alpha = alpha
+        self.beta_start = beta_start
+        self.beta_frames = beta_frames
+        self.frame = 0
+        self.epsilon = 1e-6
+
+        if seed is not None:
+            random.seed(seed)
+            np.random.seed(seed)
+
+    def _get_priority(self, td_error: float) -> float:
+        """Convert TD error to priority"""
+        return (abs(td_error) + self.epsilon) ** self.alpha
+
+    def _compute_n_step_return(self, env_id: int) -> Tuple[np.ndarray, int, float, np.ndarray, bool]:
+        """Compute n-step return from accumulated transitions for specific env"""
+        n_step_buffer = self.n_step_buffers[env_id]
+        first_state, first_action, _, _, _ = n_step_buffer[0]
+
+        n_step_reward = 0.0
+        for i, (_, _, reward, _, done) in enumerate(n_step_buffer):
+            n_step_reward += (self.gamma ** i) * reward
+            if done:
+                break
+
+        _, _, _, last_next_state, last_done = n_step_buffer[-1]
+
+        return first_state, first_action, n_step_reward, last_next_state, last_done
+
+    def push(
+        self,
+        state: np.ndarray,
+        action: int,
+        reward: float,
+        next_state: np.ndarray,
+        done: bool,
+        env_id: int = 0,
+        td_error: float = None
+    ):
+        """Add transition with n-step return computation and priority"""
+        n_step_buffer = self.n_step_buffers[env_id]
+        n_step_buffer.append((state, action, reward, next_state, done))
+
+        if done:
+            while len(n_step_buffer) > 0:
+                n_step_transition = self._compute_n_step_return(env_id)
+                self._add_to_tree(n_step_transition, td_error)
+                n_step_buffer.popleft()
+        elif len(n_step_buffer) == self.n_step:
+            n_step_transition = self._compute_n_step_return(env_id)
+            self._add_to_tree(n_step_transition, td_error)
+
+    def _add_to_tree(self, transition: tuple, td_error: float = None):
+        """Add transition to sum tree with priority"""
+        if td_error is None:
+            max_priority = np.max(self.tree.tree[-self.tree.capacity:])
+            if max_priority == 0:
+                max_priority = 1.0
+            priority = max_priority
+        else:
+            priority = self._get_priority(td_error)
+
+        self.tree.add(priority, transition)
+
+    def sample(self, batch_size: int) -> Tuple[torch.Tensor, ...]:
+        """
+        Sample batch with importance sampling weights
+
+        Returns:
+            Tuple of (states, actions, rewards, next_states, dones, indices, weights)
+        """
+        batch = []
+        indices = []
+        priorities = []
+
+        segment = self.tree.total() / batch_size
+
+        self.frame += 1
+        beta = min(1.0, self.beta_start + self.frame * (1.0 - self.beta_start) / self.beta_frames)
+
+        for i in range(batch_size):
+            a = segment * i
+            b = segment * (i + 1)
+            s = random.uniform(a, b)
+
+            idx, priority, data = self.tree.get(s)
+            batch.append(data)
+            indices.append(idx)
+            priorities.append(priority)
+
+        priorities = np.array(priorities)
+        sampling_probs = priorities / self.tree.total()
+        weights = (self.tree.n_entries * sampling_probs) ** (-beta)
+        weights = weights / weights.max()
+
+        states, actions, rewards, next_states, dones = zip(*batch)
+
+        states = torch.FloatTensor(np.array(states))
+        actions = torch.LongTensor(actions)
+        rewards = torch.FloatTensor(rewards)
+        next_states = torch.FloatTensor(np.array(next_states))
+        dones = torch.FloatTensor(dones)
+        weights = torch.FloatTensor(weights)
+
+        return states, actions, rewards, next_states, dones, indices, weights
+
+    def update_priorities(self, indices: List[int], td_errors: np.ndarray):
+        """Update priorities for sampled experiences"""
+        for idx, td_error in zip(indices, td_errors):
+            priority = self._get_priority(td_error)
+            self.tree.update(idx, priority)
+
+    def reset_n_step_buffer(self, env_id: int = None):
+        """Reset the n-step accumulation buffer for specific env or all envs"""
+        if env_id is not None:
+            self.n_step_buffers[env_id].clear()
+        else:
+            for buf in self.n_step_buffers:
+                buf.clear()
+
+    def __len__(self) -> int:
+        """Return current buffer size"""
+        return self.tree.n_entries
+
+    def is_ready(self, min_size: int) -> bool:
+        """Check if buffer has enough samples"""
+        return self.tree.n_entries >= min_size
+
+
 class EpsilonScheduler:
     """
     Epsilon-greedy exploration scheduler
@@ -535,3 +821,121 @@ def load_model(model: torch.nn.Module, filepath: str, device: torch.device = Non
     # Return additional info
     info = {k: v for k, v in checkpoint.items() if k != 'model_state_dict'}
     return info
+
+
+def project_distribution(
+    next_dist: torch.Tensor,
+    rewards: torch.Tensor,
+    dones: torch.Tensor,
+    support: torch.Tensor,
+    gamma: float,
+    n_step: int = 1
+) -> torch.Tensor:
+    """
+    Project the target distribution onto the fixed support for Categorical DQN.
+
+    This implements the distributional Bellman update:
+    T_z = r + gamma^n * z (clipped to [v_min, v_max])
+
+    Then projects onto the fixed support using linear interpolation.
+
+    Args:
+        next_dist: (batch_size, n_atoms) - distribution of next state-action
+        rewards: (batch_size,) - n-step rewards
+        dones: (batch_size,) - done flags
+        support: (n_atoms,) - fixed support values [v_min, ..., v_max]
+        gamma: discount factor
+        n_step: number of steps for n-step returns
+
+    Returns:
+        (batch_size, n_atoms) - projected target distribution
+    """
+    batch_size = rewards.size(0)
+    n_atoms = support.size(0)
+    v_min = support[0].item()
+    v_max = support[-1].item()
+    delta_z = (v_max - v_min) / (n_atoms - 1)
+
+    # Compute projected support: T_z = r + gamma^n * z
+    # Shape: (batch_size, n_atoms)
+    gamma_n = gamma ** n_step
+    t_z = rewards.unsqueeze(1) + (1 - dones.unsqueeze(1)) * gamma_n * support.unsqueeze(0)
+
+    # Clip to valid range
+    t_z = t_z.clamp(v_min, v_max)
+
+    # Compute projection indices
+    b = (t_z - v_min) / delta_z  # (batch_size, n_atoms)
+    l = b.floor().long()  # Lower index
+    u = b.ceil().long()   # Upper index
+
+    # Clamp indices to valid range
+    l = l.clamp(0, n_atoms - 1)
+    u = u.clamp(0, n_atoms - 1)
+
+    # Handle edge case when l == u (b is exactly an integer)
+    # In this case, all probability should go to that single atom
+    eq_mask = (l == u)
+    l_offset = torch.zeros_like(l)
+    l_offset[eq_mask] = 1
+    l = (l - l_offset).clamp(0, n_atoms - 1)
+
+    # Initialize projected distribution
+    proj_dist = torch.zeros_like(next_dist)
+
+    # Distribute probability mass
+    # For each atom j in next_dist, distribute to atoms l[j] and u[j]
+    offset = torch.arange(batch_size, device=rewards.device).unsqueeze(1) * n_atoms
+
+    # Flatten for scatter_add
+    proj_dist_flat = proj_dist.view(-1)
+
+    # Lower projection: add p_j * (u - b) to atom l
+    lower_proj = next_dist * (u.float() - b)
+    proj_dist_flat.scatter_add_(0, (l + offset).view(-1), lower_proj.view(-1))
+
+    # Upper projection: add p_j * (b - l) to atom u
+    upper_proj = next_dist * (b - l.float())
+    proj_dist_flat.scatter_add_(0, (u + offset).view(-1), upper_proj.view(-1))
+
+    proj_dist = proj_dist_flat.view(batch_size, n_atoms)
+
+    return proj_dist
+
+
+def categorical_dqn_loss(
+    current_dist: torch.Tensor,
+    target_dist: torch.Tensor,
+    support: torch.Tensor,
+    weights: torch.Tensor = None
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Compute cross-entropy loss for Categorical DQN.
+
+    Args:
+        current_dist: (batch_size, n_atoms) - predicted distribution
+        target_dist: (batch_size, n_atoms) - target distribution (from projection)
+        support: (n_atoms,) - support values for computing Q-values
+        weights: (batch_size,) - importance sampling weights (for PER)
+
+    Returns:
+        Tuple of (loss, td_errors for priority update)
+    """
+    # Cross-entropy loss: -sum(target * log(current))
+    # Add small epsilon for numerical stability
+    log_current = torch.log(current_dist + 1e-8)
+    elementwise_loss = -(target_dist * log_current).sum(dim=1)
+
+    # Compute proper TD errors for PER using Q-values (expected values of distributions)
+    # Q = sum(p_i * z_i) where z_i are support values
+    with torch.no_grad():
+        current_q = (current_dist * support.unsqueeze(0)).sum(dim=1)
+        target_q = (target_dist * support.unsqueeze(0)).sum(dim=1)
+        td_errors = torch.abs(target_q - current_q)
+
+    if weights is not None:
+        loss = (weights * elementwise_loss).mean()
+    else:
+        loss = elementwise_loss.mean()
+
+    return loss, td_errors

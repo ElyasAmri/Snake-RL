@@ -528,6 +528,426 @@ class PPO_Critic_CNN(nn.Module):
         return value
 
 
+class CategoricalDQN_MLP(nn.Module):
+    """
+    Categorical (Distributional) DQN with MLP
+
+    Instead of learning Q(s,a) directly, learns the distribution of returns.
+    Uses N_ATOMS discrete supports to approximate the value distribution.
+
+    Based on "A Distributional Perspective on Reinforcement Learning"
+    (Bellemare et al., 2017)
+    """
+
+    def __init__(
+        self,
+        input_dim: int = 10,
+        output_dim: int = 3,
+        hidden_dims: Tuple[int, ...] = (128, 128),
+        n_atoms: int = 51,
+        v_min: float = -10.0,
+        v_max: float = 10.0
+    ):
+        """
+        Initialize Categorical DQN MLP
+
+        Args:
+            input_dim: Input feature dimension
+            output_dim: Number of actions
+            hidden_dims: Tuple of hidden layer sizes
+            n_atoms: Number of atoms in the distribution
+            v_min: Minimum value of support
+            v_max: Maximum value of support
+        """
+        super().__init__()
+
+        self.output_dim = output_dim
+        self.n_atoms = n_atoms
+        self.v_min = v_min
+        self.v_max = v_max
+
+        # Support: z_i = v_min + i * delta_z
+        self.register_buffer(
+            'support',
+            torch.linspace(v_min, v_max, n_atoms)
+        )
+        self.delta_z = (v_max - v_min) / (n_atoms - 1)
+
+        layers = []
+        prev_dim = input_dim
+
+        # Hidden layers
+        for hidden_dim in hidden_dims:
+            layers.append(nn.Linear(prev_dim, hidden_dim))
+            layers.append(nn.ReLU())
+            prev_dim = hidden_dim
+
+        self.features = nn.Sequential(*layers)
+
+        # Output layer: for each action, output n_atoms probabilities
+        self.fc_out = nn.Linear(prev_dim, output_dim * n_atoms)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass - returns action-value distributions
+
+        Args:
+            x: (batch_size, input_dim) state tensor
+
+        Returns:
+            (batch_size, output_dim, n_atoms) probability distributions
+        """
+        features = self.features(x)
+        logits = self.fc_out(features)
+
+        # Reshape to (batch_size, n_actions, n_atoms)
+        logits = logits.view(-1, self.output_dim, self.n_atoms)
+
+        # Apply softmax over atoms dimension to get probabilities
+        probs = F.softmax(logits, dim=-1)
+
+        return probs
+
+    def get_q_values(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Compute Q-values as expected value of distributions
+
+        Args:
+            x: (batch_size, input_dim) state tensor
+
+        Returns:
+            (batch_size, output_dim) Q-values
+        """
+        probs = self.forward(x)
+        # Q(s,a) = sum_i z_i * p_i(s,a)
+        q_values = (probs * self.support.unsqueeze(0).unsqueeze(0)).sum(dim=-1)
+        return q_values
+
+
+class NoisyCategoricalDQN_MLP(nn.Module):
+    """
+    Noisy Categorical DQN with MLP
+
+    Combines distributional RL with noisy networks for exploration.
+    This is a key component of Rainbow DQN.
+    """
+
+    def __init__(
+        self,
+        input_dim: int = 10,
+        output_dim: int = 3,
+        hidden_dims: Tuple[int, ...] = (128, 128),
+        n_atoms: int = 51,
+        v_min: float = -10.0,
+        v_max: float = 10.0,
+        sigma_init: float = 0.5
+    ):
+        """
+        Initialize Noisy Categorical DQN MLP
+
+        Args:
+            input_dim: Input feature dimension
+            output_dim: Number of actions
+            hidden_dims: Tuple of hidden layer sizes
+            n_atoms: Number of atoms in the distribution
+            v_min: Minimum value of support
+            v_max: Maximum value of support
+            sigma_init: Initial noise standard deviation
+        """
+        super().__init__()
+
+        self.output_dim = output_dim
+        self.n_atoms = n_atoms
+        self.v_min = v_min
+        self.v_max = v_max
+
+        self.register_buffer(
+            'support',
+            torch.linspace(v_min, v_max, n_atoms)
+        )
+        self.delta_z = (v_max - v_min) / (n_atoms - 1)
+
+        # Build network with NoisyLinear layers
+        layers = []
+        prev_dim = input_dim
+
+        for hidden_dim in hidden_dims:
+            layers.append(NoisyLinear(prev_dim, hidden_dim, sigma_init))
+            layers.append(nn.ReLU())
+            prev_dim = hidden_dim
+
+        self.features = nn.Sequential(*layers)
+
+        # Output layer with NoisyLinear
+        self.fc_out = NoisyLinear(prev_dim, output_dim * n_atoms, sigma_init)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass - returns action-value distributions
+
+        Args:
+            x: (batch_size, input_dim) state tensor
+
+        Returns:
+            (batch_size, output_dim, n_atoms) probability distributions
+        """
+        features = self.features(x)
+        logits = self.fc_out(features)
+
+        logits = logits.view(-1, self.output_dim, self.n_atoms)
+        probs = F.softmax(logits, dim=-1)
+
+        return probs
+
+    def get_q_values(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Compute Q-values as expected value of distributions
+
+        Args:
+            x: (batch_size, input_dim) state tensor
+
+        Returns:
+            (batch_size, output_dim) Q-values
+        """
+        probs = self.forward(x)
+        q_values = (probs * self.support.unsqueeze(0).unsqueeze(0)).sum(dim=-1)
+        return q_values
+
+    def reset_noise(self):
+        """Reset noise in all NoisyLinear layers"""
+        for module in self.features.modules():
+            if isinstance(module, NoisyLinear):
+                module.reset_noise()
+        self.fc_out.reset_noise()
+
+
+class DuelingCategoricalDQN_MLP(nn.Module):
+    """
+    Dueling Categorical DQN with MLP
+
+    Combines distributional RL with dueling architecture.
+    Separates value and advantage streams, each outputting distributions.
+    """
+
+    def __init__(
+        self,
+        input_dim: int = 10,
+        output_dim: int = 3,
+        hidden_dims: Tuple[int, ...] = (128, 128),
+        n_atoms: int = 51,
+        v_min: float = -10.0,
+        v_max: float = 10.0
+    ):
+        """
+        Initialize Dueling Categorical DQN MLP
+
+        Args:
+            input_dim: Input feature dimension
+            output_dim: Number of actions
+            hidden_dims: Tuple of hidden layer sizes
+            n_atoms: Number of atoms in the distribution
+            v_min: Minimum value of support
+            v_max: Maximum value of support
+        """
+        super().__init__()
+
+        self.output_dim = output_dim
+        self.n_atoms = n_atoms
+        self.v_min = v_min
+        self.v_max = v_max
+
+        self.register_buffer(
+            'support',
+            torch.linspace(v_min, v_max, n_atoms)
+        )
+        self.delta_z = (v_max - v_min) / (n_atoms - 1)
+
+        # Shared layers
+        shared_layers = []
+        prev_dim = input_dim
+
+        for hidden_dim in hidden_dims[:-1]:
+            shared_layers.append(nn.Linear(prev_dim, hidden_dim))
+            shared_layers.append(nn.ReLU())
+            prev_dim = hidden_dim
+
+        self.shared = nn.Sequential(*shared_layers)
+
+        # Value stream (outputs distribution over single value)
+        self.value_stream = nn.Sequential(
+            nn.Linear(prev_dim, hidden_dims[-1]),
+            nn.ReLU(),
+            nn.Linear(hidden_dims[-1], n_atoms)
+        )
+
+        # Advantage stream (outputs distributions for each action)
+        self.advantage_stream = nn.Sequential(
+            nn.Linear(prev_dim, hidden_dims[-1]),
+            nn.ReLU(),
+            nn.Linear(hidden_dims[-1], output_dim * n_atoms)
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass - returns action-value distributions
+
+        Args:
+            x: (batch_size, input_dim) state tensor
+
+        Returns:
+            (batch_size, output_dim, n_atoms) probability distributions
+        """
+        batch_size = x.size(0)
+        shared = self.shared(x)
+
+        # Value distribution: (batch_size, n_atoms)
+        value = self.value_stream(shared)
+        value = value.view(batch_size, 1, self.n_atoms)
+
+        # Advantage distributions: (batch_size, n_actions, n_atoms)
+        advantage = self.advantage_stream(shared)
+        advantage = advantage.view(batch_size, self.output_dim, self.n_atoms)
+
+        # Combine: Q = V + (A - mean(A)) in log space before softmax
+        q_logits = value + (advantage - advantage.mean(dim=1, keepdim=True))
+
+        # Apply softmax over atoms
+        probs = F.softmax(q_logits, dim=-1)
+
+        return probs
+
+    def get_q_values(self, x: torch.Tensor) -> torch.Tensor:
+        """Compute Q-values as expected value of distributions"""
+        probs = self.forward(x)
+        q_values = (probs * self.support.unsqueeze(0).unsqueeze(0)).sum(dim=-1)
+        return q_values
+
+
+class RainbowDQN_MLP(nn.Module):
+    """
+    Rainbow DQN with MLP
+
+    Combines all DQN improvements:
+    - Double DQN (handled in training)
+    - Prioritized Experience Replay (handled in buffer)
+    - Dueling Architecture
+    - Noisy Networks
+    - N-step Returns (handled in buffer)
+    - Distributional RL (Categorical)
+
+    This network implements: Dueling + Noisy + Distributional
+    """
+
+    def __init__(
+        self,
+        input_dim: int = 10,
+        output_dim: int = 3,
+        hidden_dims: Tuple[int, ...] = (128, 128),
+        n_atoms: int = 51,
+        v_min: float = -10.0,
+        v_max: float = 10.0,
+        sigma_init: float = 0.5
+    ):
+        """
+        Initialize Rainbow DQN MLP
+
+        Args:
+            input_dim: Input feature dimension
+            output_dim: Number of actions
+            hidden_dims: Tuple of hidden layer sizes
+            n_atoms: Number of atoms in the distribution
+            v_min: Minimum value of support
+            v_max: Maximum value of support
+            sigma_init: Initial noise standard deviation for NoisyLinear
+        """
+        super().__init__()
+
+        self.output_dim = output_dim
+        self.n_atoms = n_atoms
+        self.v_min = v_min
+        self.v_max = v_max
+
+        self.register_buffer(
+            'support',
+            torch.linspace(v_min, v_max, n_atoms)
+        )
+        self.delta_z = (v_max - v_min) / (n_atoms - 1)
+
+        # Shared feature extraction with NoisyLinear
+        shared_layers = []
+        prev_dim = input_dim
+
+        for hidden_dim in hidden_dims[:-1]:
+            shared_layers.append(NoisyLinear(prev_dim, hidden_dim, sigma_init))
+            shared_layers.append(nn.ReLU())
+            prev_dim = hidden_dim
+
+        self.shared = nn.Sequential(*shared_layers)
+
+        # Value stream with NoisyLinear
+        self.value_hidden = NoisyLinear(prev_dim, hidden_dims[-1], sigma_init)
+        self.value_out = NoisyLinear(hidden_dims[-1], n_atoms, sigma_init)
+
+        # Advantage stream with NoisyLinear
+        self.advantage_hidden = NoisyLinear(prev_dim, hidden_dims[-1], sigma_init)
+        self.advantage_out = NoisyLinear(hidden_dims[-1], output_dim * n_atoms, sigma_init)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass - returns action-value distributions
+
+        Args:
+            x: (batch_size, input_dim) state tensor
+
+        Returns:
+            (batch_size, output_dim, n_atoms) probability distributions
+        """
+        batch_size = x.size(0)
+        shared = self.shared(x)
+
+        # Value stream
+        value = F.relu(self.value_hidden(shared))
+        value = self.value_out(value)
+        value = value.view(batch_size, 1, self.n_atoms)
+
+        # Advantage stream
+        advantage = F.relu(self.advantage_hidden(shared))
+        advantage = self.advantage_out(advantage)
+        advantage = advantage.view(batch_size, self.output_dim, self.n_atoms)
+
+        # Combine using dueling formula
+        q_logits = value + (advantage - advantage.mean(dim=1, keepdim=True))
+
+        # Softmax over atoms to get probability distribution
+        probs = F.softmax(q_logits, dim=-1)
+
+        return probs
+
+    def get_q_values(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Compute Q-values as expected value of distributions
+
+        Args:
+            x: (batch_size, input_dim) state tensor
+
+        Returns:
+            (batch_size, output_dim) Q-values
+        """
+        probs = self.forward(x)
+        q_values = (probs * self.support.unsqueeze(0).unsqueeze(0)).sum(dim=-1)
+        return q_values
+
+    def reset_noise(self):
+        """Reset noise in all NoisyLinear layers"""
+        for module in self.shared.modules():
+            if isinstance(module, NoisyLinear):
+                module.reset_noise()
+        self.value_hidden.reset_noise()
+        self.value_out.reset_noise()
+        self.advantage_hidden.reset_noise()
+        self.advantage_out.reset_noise()
+
+
 def count_parameters(model: nn.Module) -> int:
     """Count trainable parameters in model"""
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
