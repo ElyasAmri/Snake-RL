@@ -20,7 +20,7 @@ import numpy as np
 from typing import Optional, Literal
 import time
 
-from core.environment_vectorized import VectorizedSnakeEnv
+from core.environment_vectorized import VectorizedSnakeEnv, EntrapmentConfig
 from core.networks import DQN_MLP, DQN_CNN, DuelingDQN_MLP, NoisyDQN_MLP
 from core.utils import ReplayBuffer, PrioritizedReplayBuffer, EpsilonScheduler, MetricsTracker, set_seed, get_device
 
@@ -79,6 +79,13 @@ class DQNTrainer:
         # Reward config
         reward_death: float = -10.0,
 
+        # Entrapment config
+        entrapment_enabled: bool = False,
+        entrapment_threshold: float = 0.30,
+        entrapment_step_reward: float = 0.02,
+        entrapment_food_reward: float = -5.0,
+        entrapment_include_feature: bool = False,
+
         # Other
         seed: int = 67,
         device: Optional[torch.device] = None,
@@ -119,6 +126,18 @@ class DQNTrainer:
         self.save_dir = Path(save_dir)
         self.save_dir.mkdir(parents=True, exist_ok=True)
 
+        # Build entrapment config if enabled
+        entrapment_config = None
+        if entrapment_enabled:
+            entrapment_config = EntrapmentConfig(
+                enabled=True,
+                threshold=entrapment_threshold,
+                reward_step_entrapped=entrapment_step_reward,
+                reward_food_entrapped=entrapment_food_reward,
+                include_feature=entrapment_include_feature
+            )
+        self.entrapment_config = entrapment_config
+
         # Create environment
         self.env = VectorizedSnakeEnv(
             num_envs=num_envs,
@@ -130,6 +149,7 @@ class DQNTrainer:
             use_flood_fill=use_flood_fill,
             use_enhanced_features=use_enhanced_features,
             use_selective_features=use_selective_features,
+            entrapment_config=entrapment_config,
             device=self.device
         )
 
@@ -137,12 +157,15 @@ class DQNTrainer:
         if state_representation == 'feature':
             # Determine input dimension based on feature configuration
             input_dim = 10  # Base features: 3 danger + 4 food direction + 3 current direction
-            if use_flood_fill:
-                input_dim = 13  # 10 base + 3 flood-fill
+            if use_flood_fill or entrapment_enabled:
+                input_dim = 13  # 10 base + 3 flood-fill (entrapment auto-enables flood-fill)
             if use_selective_features:
                 input_dim = 18  # 10 base + 3 flood-fill + 5 selective
             if use_enhanced_features:
                 input_dim = 23  # 10 base + 3 flood-fill + 10 enhanced
+            # Add 1 for entrapped feature if enabled
+            if entrapment_enabled and entrapment_include_feature:
+                input_dim += 1
 
             if use_noisy:
                 # Noisy DQN with NoisyLinear layers
