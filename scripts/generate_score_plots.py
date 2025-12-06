@@ -166,12 +166,10 @@ def train_and_plot(algorithm: str, use_flood_fill: bool, num_episodes: int, outp
     scores = trainer.metrics.episode_scores
     plot_score_only(name, scores, output_dir / output_file)
 
-    # Generate death cause plot for basic features (death investigation section)
-    death_stats = None
-    if not use_flood_fill:
-        death_output = f"{algorithm.lower()}_{feature_name}_deaths.png"
-        death_stats = plot_cumulative_deaths(name, trainer.metrics, output_dir / death_output)
-        print(f"  Death breakdown: Wall {death_stats['wall']:.1f}%, Self {death_stats['self']:.1f}%, Entrap {death_stats['entrapment']:.1f}%")
+    # Generate death cause plot for all configurations
+    death_output = f"{algorithm.lower()}_{feature_name}_deaths.png"
+    death_stats = plot_cumulative_deaths(name, trainer.metrics, output_dir / death_output)
+    print(f"  Death breakdown: Wall {death_stats['wall']:.1f}%, Self {death_stats['self']:.1f}%, Entrap {death_stats['entrapment']:.1f}%")
 
     # Save data to JSON
     data_dir = Path('results/data')
@@ -185,9 +183,8 @@ def train_and_plot(algorithm: str, use_flood_fill: bool, num_episodes: int, outp
         'scores': scores,
         'max_score': max(scores),
         'avg_score_last_100': np.mean(scores[-100:]) if len(scores) >= 100 else np.mean(scores),
+        'death_stats': death_stats,
     }
-    if death_stats:
-        data['death_stats'] = death_stats
     with open(json_path, 'w') as f:
         json.dump(data, f, indent=2)
     print(f"Saved data: {json_path}")
@@ -201,14 +198,12 @@ def main():
     output_dir = Path('results/figures')
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Training configurations
-    # Basic features: 3000 episodes
-    # Flood-fill: 2000 episodes (converges faster)
+    # Training configurations - 5000 episodes for all for fair comparison
     configs = [
-        ('DQN', False, 3000),   # DQN basic
-        ('PPO', False, 2000),   # PPO basic
-        ('DQN', True, 5000),    # DQN flood-fill (needs more for good results)
-        ('PPO', True, 2000),    # PPO flood-fill
+        ('DQN', False, 5000),   # DQN basic
+        ('PPO', False, 5000),   # PPO basic
+        ('DQN', True, 5000),    # DQN flood-fill
+        ('PPO', True, 5000),    # PPO flood-fill
     ]
 
     for algorithm, use_flood_fill, num_episodes in configs:

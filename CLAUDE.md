@@ -59,3 +59,4 @@ tests/
 - Always keep everything organized
 - Always search for theory for reinforcement learning agent before making suggestions
 - Record metrics for training models, including time took to train
+- When checking output using BashOutput, you must sleep for a period of time before checking again to avoid wasting tokens

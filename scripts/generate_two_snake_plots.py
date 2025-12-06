@@ -36,7 +36,7 @@ def smooth(data, window=10):
     return np.convolve(data, np.ones(window)/window, mode='valid')
 
 
-def train_dqn_direct(total_steps: int = 1000000, max_time: int = None):
+def train_dqn_direct(total_steps: int = 10000000, max_time: int = None):
     """Train DQN direct co-evolution"""
     from scripts.training.train_dqn_two_snake_mlp import DQNConfig, TwoSnakeDQNTrainer
 
@@ -56,7 +56,7 @@ def train_dqn_direct(total_steps: int = 1000000, max_time: int = None):
     return results
 
 
-def train_ppo_direct(total_steps: int = 1000000, max_time: int = None):
+def train_ppo_direct(total_steps: int = 10000000, max_time: int = None):
     """Train PPO direct co-evolution"""
     from scripts.training.train_ppo_two_snake_mlp import PPOConfig, TwoSnakePPOTrainer
 
@@ -266,14 +266,14 @@ def plot_training_curves(results_list, output_path: Path):
 
 
 def plot_curriculum_stages(results, output_path: Path):
-    """Plot curriculum learning stage progression"""
+    """Plot curriculum learning stage progression - difficulty settings only"""
     if not results.get('stage_results'):
         print("No curriculum stage data available")
         return
 
     stages = results['stage_results']
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+    fig, ax = plt.subplots(figsize=(10, 6))
 
     # Stage parameters
     stage_names = [s['name'].replace('Stage', 'S').replace('_', '\n') for s in stages]
@@ -283,36 +283,150 @@ def plot_curriculum_stages(results, output_path: Path):
     x = np.arange(len(stages))
     width = 0.35
 
-    # Plot 1: Target food and win rate thresholds
-    bars1 = ax1.bar(x - width/2, target_foods, width, label='Target Food', color='steelblue')
-    ax1.set_ylabel('Target Food Count', fontsize=11)
-    ax1.set_xlabel('Curriculum Stage', fontsize=11)
-    ax1.set_title('Progressive Difficulty Settings', fontsize=12)
-    ax1.set_xticks(x)
-    ax1.set_xticklabels(stage_names, fontsize=9)
+    # Plot: Target food and win rate thresholds
+    bars1 = ax.bar(x - width/2, target_foods, width, label='Target Food', color='steelblue')
+    ax.set_ylabel('Target Food Count', fontsize=11)
+    ax.set_xlabel('Curriculum Stage', fontsize=11)
+    ax.set_title('Curriculum Learning - Progressive Difficulty Settings', fontsize=12)
+    ax.set_xticks(x)
+    ax.set_xticklabels(stage_names, fontsize=9)
 
-    ax1_twin = ax1.twinx()
-    bars2 = ax1_twin.bar(x + width/2, [t*100 for t in thresholds], width,
+    ax_twin = ax.twinx()
+    bars2 = ax_twin.bar(x + width/2, [t*100 for t in thresholds], width,
                          label='Win Rate Threshold', color='coral')
-    ax1_twin.set_ylabel('Win Rate Threshold (%)', fontsize=11)
+    ax_twin.set_ylabel('Win Rate Threshold (%)', fontsize=11)
 
-    ax1.legend(loc='upper left')
-    ax1_twin.legend(loc='upper right')
+    ax.legend(loc='upper left')
+    ax_twin.legend(loc='upper right')
 
-    # Plot 2: Opponent progression
-    opponent_types = [s['opponent_type'] for s in stages]
-    opponent_difficulty = {'static': 1, 'random': 2, 'greedy': 3, 'frozen': 4, 'learning': 5}
-    difficulties = [opponent_difficulty.get(o, 0) for o in opponent_types]
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    plt.close()
+    print(f"Saved: {output_path}")
 
-    ax2.bar(x, difficulties, color='purple', alpha=0.7)
-    ax2.set_ylabel('Opponent Difficulty', fontsize=11)
-    ax2.set_xlabel('Curriculum Stage', fontsize=11)
-    ax2.set_title('Opponent Progression', fontsize=12)
-    ax2.set_xticks(x)
-    ax2.set_xticklabels(stage_names, fontsize=9)
-    ax2.set_yticks([1, 2, 3, 4, 5])
-    ax2.set_yticklabels(['Static', 'Random', 'Greedy', 'Frozen', 'Co-evolve'])
 
+def plot_curriculum_win_rate_combined(win_rate_history, output_path: Path):
+    """Single plot with all stages, vertical lines at stage transitions"""
+    if not win_rate_history:
+        print("No win rate history available")
+        return
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    # Extract data
+    steps = [h['step'] for h in win_rate_history]
+    win_rates = [h['win_rate'] for h in win_rate_history]
+    stages = [h['stage'] for h in win_rate_history]
+
+    # Color code by stage
+    stage_colors = {0: '#2ecc71', 1: '#3498db', 2: '#e74c3c', 3: '#9b59b6', 4: '#f39c12'}
+    stage_names = {0: 'Static', 1: 'Random', 2: 'Greedy', 3: 'Frozen', 4: 'Co-evolution'}
+
+    # Plot win rate as a continuous line
+    ax.plot(steps, win_rates, linewidth=1.5, color='black', alpha=0.5, label='Win Rate')
+
+    # Add smoothed line
+    if len(win_rates) >= 10:
+        smoothed = smooth(win_rates, min(10, len(win_rates) // 5))
+        offset = len(win_rates) - len(smoothed)
+        ax.plot(steps[offset:], smoothed, linewidth=2.5, color='blue', label='Smoothed')
+
+    # Find stage boundaries and add vertical lines
+    prev_stage = stages[0]
+    stage_boundaries = []
+    for i, stage in enumerate(stages):
+        if stage != prev_stage:
+            stage_boundaries.append((steps[i], prev_stage, stage))
+            prev_stage = stage
+
+    for step, from_stage, to_stage in stage_boundaries:
+        ax.axvline(x=step, color='red', linestyle='--', linewidth=1.5, alpha=0.7)
+        ax.text(step, 1.02, f'{stage_names[to_stage]}', rotation=0,
+                ha='center', va='bottom', fontsize=9, color='red')
+
+    # Add 50% reference line
+    ax.axhline(y=0.5, color='gray', linestyle=':', alpha=0.5)
+
+    # Labels
+    ax.set_xlabel('Training Steps', fontsize=12)
+    ax.set_ylabel('Win Rate (Big Agent)', fontsize=12)
+    ax.set_title('Curriculum Learning - Win Rate Over Training', fontsize=14)
+    ax.legend(loc='lower right', fontsize=10)
+    ax.grid(True, alpha=0.3)
+    ax.set_ylim(0, 1.1)
+    ax.set_xlim(0, max(steps))
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    plt.close()
+    print(f"Saved: {output_path}")
+
+
+def plot_curriculum_win_rate_per_stage(win_rate_history, output_path: Path):
+    """5 subplots, one per stage, showing win rate progression within each stage"""
+    if not win_rate_history:
+        print("No win rate history available")
+        return
+
+    # Group by stage
+    stage_data = {}
+    for h in win_rate_history:
+        stage = h['stage']
+        if stage not in stage_data:
+            stage_data[stage] = {'steps': [], 'win_rates': [], 'scores1': [], 'scores2': [], 'name': h['stage_name']}
+        stage_data[stage]['steps'].append(h['stage_step'])
+        stage_data[stage]['win_rates'].append(h['win_rate'])
+        stage_data[stage]['scores1'].append(h['avg_score1'])
+        stage_data[stage]['scores2'].append(h['avg_score2'])
+
+    # Create subplots
+    num_stages = len(stage_data)
+    fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+    axes = axes.flatten()
+
+    stage_colors = {0: '#2ecc71', 1: '#3498db', 2: '#e74c3c', 3: '#9b59b6', 4: '#f39c12'}
+    stage_thresholds = {0: 0.70, 1: 0.60, 2: 0.05, 3: 0.30, 4: None}
+
+    for stage_id in sorted(stage_data.keys()):
+        ax = axes[stage_id]
+        data = stage_data[stage_id]
+
+        steps = data['steps']
+        win_rates = data['win_rates']
+        color = stage_colors.get(stage_id, 'gray')
+
+        # Plot raw win rate
+        ax.plot(steps, win_rates, linewidth=1, color=color, alpha=0.4, label='Raw')
+
+        # Plot smoothed if enough data
+        if len(win_rates) >= 5:
+            smoothed = smooth(win_rates, min(5, len(win_rates) // 3))
+            offset = len(win_rates) - len(smoothed)
+            ax.plot(steps[offset:], smoothed, linewidth=2.5, color=color, label='Smoothed')
+
+        # Add threshold line
+        threshold = stage_thresholds.get(stage_id)
+        if threshold is not None:
+            ax.axhline(y=threshold, color='black', linestyle='--', linewidth=2, alpha=0.7,
+                       label=f'Threshold ({threshold:.0%})')
+
+        # Add 50% reference
+        ax.axhline(y=0.5, color='gray', linestyle=':', alpha=0.3)
+
+        ax.set_xlabel('Steps in Stage', fontsize=10)
+        ax.set_ylabel('Win Rate', fontsize=10)
+        ax.set_title(f"Stage {stage_id}: {data['name'].replace('Stage' + str(stage_id) + '_', '')}", fontsize=11)
+        ax.legend(loc='lower right', fontsize=8)
+        ax.grid(True, alpha=0.3)
+        ax.set_ylim(0, 1.05)
+        if steps:
+            ax.set_xlim(0, max(steps))
+
+    # Hide unused subplot
+    if num_stages < 6:
+        axes[5].set_visible(False)
+
+    plt.suptitle('Curriculum Learning - Win Rate by Stage', fontsize=14, y=1.02)
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
     plt.close()
@@ -384,14 +498,14 @@ def main():
 
     # 1. DQN Direct
     try:
-        dqn_results = train_dqn_direct(total_steps=1000000)
+        dqn_results = train_dqn_direct(total_steps=10000000)
         all_results['DQN'] = dqn_results
     except Exception as e:
         print(f"DQN training failed: {e}")
 
     # 2. PPO Direct
     try:
-        ppo_results = train_ppo_direct(total_steps=1000000)
+        ppo_results = train_ppo_direct(total_steps=10000000)
         all_results['PPO'] = ppo_results
     except Exception as e:
         print(f"PPO training failed: {e}")
@@ -413,6 +527,23 @@ def main():
         print("Generating curriculum stages plot...")
         plot_curriculum_stages(all_results['PPO Curriculum'],
                                output_dir / 'two_snake_curriculum_stages.png')
+
+        # Generate curriculum win rate plots
+        win_rate_history = all_results['PPO Curriculum'].get('win_rate_history', [])
+        if win_rate_history:
+            print("Generating curriculum win rate combined plot...")
+            plot_curriculum_win_rate_combined(win_rate_history,
+                                              output_dir / 'two_snake_curriculum_win_rate_combined.png')
+
+            print("Generating curriculum win rate per-stage plot...")
+            plot_curriculum_win_rate_per_stage(win_rate_history,
+                                               output_dir / 'two_snake_curriculum_win_rate_per_stage.png')
+
+            # Save win rate history to JSON
+            history_path = data_dir / 'curriculum_win_rate_history.json'
+            with open(history_path, 'w') as f:
+                json.dump(win_rate_history, f, indent=2)
+            print(f"Saved win rate history: {history_path}")
 
     # Run final competition evaluation
     print("\nRunning final competition evaluation...")

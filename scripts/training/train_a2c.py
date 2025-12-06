@@ -46,7 +46,7 @@ class A2CTrainer:
         max_grad_norm: float = 0.5,
 
         # Training config
-        num_episodes: int = 10000,
+        num_episodes: int = 5000,
         max_steps: int = 1000,
         rollout_steps: int = 5,  # A2C uses short rollouts (5-20 steps)
 

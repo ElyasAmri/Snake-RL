@@ -12,7 +12,7 @@ Feature Variants:
 - enhanced: 24 features (basic + flood-fill + enhanced)
 
 Usage:
-    python scripts/training/train_all_models.py [--episodes 1000] [--num-envs 256]
+    python scripts/training/train_all_models.py [--episodes 5000] [--num-envs 256]
     python scripts/training/train_all_models.py --feature-variant basic  # Single variant
     python scripts/training/train_all_models.py --algorithm DQN  # Single algorithm
 """
@@ -263,7 +263,7 @@ POLICY_GRADIENT_ALGORITHMS = ["PPO", "A2C", "REINFORCE"]
 
 def main():
     parser = argparse.ArgumentParser(description="Train all single-snake RL models")
-    parser.add_argument("--episodes", type=int, default=1000, help="Number of episodes per model")
+    parser.add_argument("--episodes", type=int, default=5000, help="Number of episodes per model")
     parser.add_argument("--num-envs", type=int, default=256, help="Number of parallel environments")
     parser.add_argument("--seed", type=int, default=67, help="Random seed")
     parser.add_argument("--grid-size", type=int, default=10, help="Grid size")

@@ -58,9 +58,9 @@ class DQNConfig:
     train_steps_ratio: float = 0.125  # Train every 8th step
 
     # Training
-    total_steps: int = 1000000  # Sized for ~10 min (~30 min total with PPO)
-    log_interval: int = 1000
-    save_interval: int = 10000
+    total_steps: int = 10000000  # 10M steps (~100 min)
+    log_interval: int = 10000
+    save_interval: int = 100000
 
     # Other
     seed: int = 67

@@ -78,15 +78,15 @@ class CurriculumPPOTrainer(TwoSnakePPOTrainer):
 
         # Define curriculum stages with progressive difficulty
         # max_steps prevents infinite loops if threshold is too hard to reach
-        # Steps sized for ~30 min total training budget (~1.5M total steps)
+        # Stages 0-1: Short (trivial opponents), Stages 2-4: Longer (harder opponents)
         self.stages = [
             CurriculumStage(
                 stage_id=0,
                 name="Stage0_Static",
                 opponent_type="static",
                 target_food=10,  # Easy: static opponent doesn't move
-                min_steps=100000,  # ~2 min
-                max_steps=200000,  # Safety limit
+                min_steps=200000,  # Short - trivial opponent
+                max_steps=500000,  # Safety limit
                 win_rate_threshold=0.70,
                 description="Learn basic movement vs static opponent (target: 10 food)",
                 agent2_trains=False
@@ -96,8 +96,8 @@ class CurriculumPPOTrainer(TwoSnakePPOTrainer):
                 name="Stage1_Random",
                 opponent_type="random",
                 target_food=10,  # Medium: random opponent is inefficient
-                min_steps=100000,  # ~2 min
-                max_steps=200000,  # Safety limit
+                min_steps=200000,  # Short - trivial opponent
+                max_steps=500000,  # Safety limit
                 win_rate_threshold=0.60,
                 description="Handle unpredictability vs random opponent (target: 10 food)",
                 agent2_trains=False
@@ -107,9 +107,9 @@ class CurriculumPPOTrainer(TwoSnakePPOTrainer):
                 name="Stage2_Greedy",
                 opponent_type="greedy",
                 target_food=4,  # Reduced: greedy opponent is very effective at food
-                min_steps=200000,  # ~4 min
-                max_steps=400000,  # Safety limit - BFS greedy is very hard to beat
-                win_rate_threshold=0.05,  # Very low: BFS greedy is nearly unbeatable
+                min_steps=2000000,  # ~40 min - hard BFS opponent
+                max_steps=5000000,  # Safety limit
+                win_rate_threshold=0.35,  # Achievable based on previous training
                 description="Compete for food vs greedy opponent (target: 4 food)",
                 agent2_trains=False
             ),
@@ -118,8 +118,8 @@ class CurriculumPPOTrainer(TwoSnakePPOTrainer):
                 name="Stage3_Frozen",
                 opponent_type="frozen",
                 target_food=6,  # Progressive difficulty
-                min_steps=200000,  # ~4 min
-                max_steps=400000,  # Safety limit
+                min_steps=1000000,  # ~20 min
+                max_steps=2000000,  # Safety limit
                 win_rate_threshold=0.30,  # Achievable with enough training
                 description="Compete against frozen policy (target: 6 food)",
                 agent2_trains=False
@@ -129,8 +129,8 @@ class CurriculumPPOTrainer(TwoSnakePPOTrainer):
                 name="Stage4_CoEvolution",
                 opponent_type="learning",
                 target_food=8,  # Both agents learning together
-                min_steps=300000,  # ~6 min
-                max_steps=400000,  # Safety limit
+                min_steps=6000000,  # ~120 min
+                max_steps=8000000,  # Safety limit
                 win_rate_threshold=None,  # No threshold - trains for full duration
                 description="Full co-evolution training (target: 8 food)",
                 agent2_trains=True
@@ -140,6 +140,9 @@ class CurriculumPPOTrainer(TwoSnakePPOTrainer):
         # Curriculum state
         self.current_stage_idx = 0
         self.stage_steps = 0
+
+        # Win rate history for plotting
+        self.win_rate_history = []
 
     def get_stage_actions(self, obs1, obs2, stage):
         """
@@ -324,6 +327,17 @@ class CurriculumPPOTrainer(TwoSnakePPOTrainer):
                 avg_score2 = np.mean(self.scores2[-100:]) if self.scores2 else 0
                 avg_loss1 = np.mean(self.losses1[-10:]) if self.losses1 else 0
 
+                # Track win rate history for plotting
+                self.win_rate_history.append({
+                    'step': self.total_steps,
+                    'stage_step': self.stage_steps,
+                    'stage': stage.stage_id,
+                    'stage_name': stage.name,
+                    'win_rate': win_rate,
+                    'avg_score1': float(avg_score1),
+                    'avg_score2': float(avg_score2)
+                })
+
                 print(f"[Step {self.total_steps:>6}] "
                       f"Stage {stage.stage_id} | "
                       f"Win Rate: {win_rate:.2%} | "
@@ -443,6 +457,18 @@ class CurriculumPPOTrainer(TwoSnakePPOTrainer):
 
         print(f"Saved to: {self.save_dir}", flush=True)
         print("="*70 + "\n", flush=True)
+
+        # Return results dict
+        return {
+            'total_steps': self.total_steps,
+            'total_rounds': self.total_rounds,
+            'final_win_rate': self.calculate_win_rate(),
+            'avg_score1': float(np.mean(self.scores1[-100:])) if self.scores1 else 0,
+            'avg_score2': float(np.mean(self.scores2[-100:])) if self.scores2 else 0,
+            'win_rate_history': self.win_rate_history,
+            'total_time': total_time,
+            'stages_completed': self.current_stage_idx + 1
+        }
 
 
 def main():
