@@ -9,6 +9,7 @@ A comprehensive implementation of reinforcement learning algorithms trained to p
 ## Table of Contents
 
 - [Project Overview](#project-overview)
+- [Pre-computed Results](#pre-computed-results)
 - [Project Structure](#project-structure)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
@@ -43,34 +44,50 @@ This project implements and compares multiple reinforcement learning algorithms 
 
 ---
 
+## Pre-computed Results
+
+If you prefer not to run simulations yourself, pre-computed results (trained weights, evaluation metrics, and generated figures) are available as a release download:
+
+**📦 Download:** [https://github.com/ElyasAmri/Snake-RL/releases/tag/latest](https://github.com/ElyasAmri/Snake-RL/releases/tag/latest)
+
+This release includes:
+- All trained model weights (`.pt` files)
+- Evaluation results and metrics (JSON/CSV)
+- Generated comparison plots and figures
+- Complete `results/` folder ready to use
+
+Simply extract the release assets into the project root to use the pre-trained models with the visualizers or review the evaluation outputs directly.
+
+---
+
 ## Project Structure
 
 ```
 Snake-RL/
-+-- core/                 # Core RL modules
-|   +-- environment.py              # Single-snake Gymnasium environment
-|   +-- environment_vectorized.py   # Vectorized single-snake (GPU)
-|   +-- environment_two_snake_vectorized.py  # Two-snake competitive
-|   +-- networks.py                 # Neural network architectures
-|   +-- state_representations.py    # Feature encoders
-|   +-- utils.py                    # Replay buffers, schedulers, metrics
-|
-+-- scripts/              # Python scripts
-|   +-- baselines/        # Baseline agents (random, A*, scripted)
-|   +-- training/         # Training scripts for all algorithms
-|   +-- visualizer/       # Pygame visualizers
-|   +-- evaluation/       # Evaluation and plotting scripts
-|
-+-- results/              # Training outputs
-|   +-- weights/          # Model checkpoints (.pt files)
-|   +-- figures/          # Generated plots
-|   +-- data/             # Metrics and logs
-|
-+-- report/               # LaTeX report and documentation
-|   +-- report.pdf        # Final compiled report
-|   +-- report.tex        # LaTeX source
-|
-+-- tests/                # Unit tests
+├── core/                 # Core RL modules
+│   ├── environment.py              # Single-snake Gymnasium environment
+│   ├── environment_vectorized.py   # Vectorized single-snake (GPU)
+│   ├── environment_two_snake_vectorized.py  # Two-snake competitive
+│   ├── networks.py                 # Neural network architectures
+│   ├── state_representations.py    # Feature encoders
+│   └── utils.py                    # Replay buffers, schedulers, metrics
+│
+├── scripts/              # Python scripts
+│   ├── baselines/        # Baseline agents (random, A*, scripted)
+│   ├── training/         # Training scripts for all algorithms
+│   ├── visualizer/       # Pygame visualizers
+│   └── evaluation/       # Evaluation and plotting scripts
+│
+├── results/              # Training outputs
+│   ├── weights/          # Model checkpoints (.pt files)
+│   ├── figures/          # Generated plots
+│   └── data/             # Metrics and logs
+│
+├── report/               # LaTeX report and documentation
+│   ├── report.pdf        # Final compiled report
+│   └── report.tex        # LaTeX source
+│
+└── tests/                # Unit tests
 ```
 
 ---
