@@ -339,10 +339,8 @@ opponent = get_scripted_agent('greedy', device=torch.device('cuda'))
 
 | Type | Dimensions | Features Included |
 |------|------------|-------------------|
-| **Basic** | 11 | Direction one-hot, relative food position, danger sensors |
-| **Flood-fill** | 14 | Basic + reachable space in each direction |
-| **Selective** | 19 | Flood-fill + enhanced spatial features |
-| **Enhanced** | 24 | Full feature set with body awareness |
+| **Basic** | 10 | Direction one-hot, relative food position, danger sensors |
+| **Flood-fill** | 13 | Basic + reachable space in each direction |
 
 ### Grid-Based (CNN Networks)
 

@@ -1,4 +1,4 @@
-\documentclass{beamer}
+\documentclass[aspectratio=169]{beamer}
 \usetheme{Madrid}
 \usecolortheme{default}
 
@@ -37,42 +37,88 @@
 \usetikzlibrary{patterns,decorations.pathreplacing}
 \usepackage{booktabs}
 
+%-----------------------------------------------
+% Custom Commands for PowerPoint Integration
+%-----------------------------------------------
+
+% Video placeholder command - creates a box indicating where to insert video
+\newcommand{\videoplacehold}[2]{%
+    \begin{center}
+        \begin{tikzpicture}
+            \node[draw, thick, minimum width=8cm, minimum height=4cm, fill=gray!10] {%
+                \begin{tabular}{c}
+                    {\Large \textbf{[VIDEO]}}\\[0.3cm]
+                    \textbf{#1}\\[0.2cm]
+                    {\small File: \texttt{#2}}
+                \end{tabular}
+            };
+        \end{tikzpicture}
+    \end{center}
+}
+
+% Presenter section title slide
+\newcommand{\presentertitle}[2]{%
+    \begin{frame}
+        \begin{center}
+            \vspace{2cm}
+            {\Huge \textbf{#2}}
+            \vspace{2cm}
+        \end{center}
+    \end{frame}
+}
+
+%-----------------------------------------------
+% Title Information
+%-----------------------------------------------
 \title{Reinforcement Learning Applied to the Snake Game}
 \subtitle{ECEN 446 - Reinforcement Learning}
-\author{Elyas Al-Amri \and Ejmen Al-Ubejdij \and Ahmad Al-Moslemani \and Marwan Humaid \and Umair Gavankar \and Hamad AlDous}
+\author{Ahmad Al-Moslemani \and Ejmen Al-Ubejdij \and Elyas Al-Amri \\ Hamad AlDous \and Marwan Humaid \and Umair Gavankar}
 \institute{Texas A\&M University}
 \date{ECEN 446 (Fall 2025)}
 
 \begin{document}
 
 %-----------------------------------------------
-% Slide 1: Cover Page
+% Slide: Cover Page
 %-----------------------------------------------
 \begin{frame}
     \titlepage
 \end{frame}
 
-% Speaker Notes:
-% - Welcome the audience
-% - Briefly introduce the team (each member can wave/nod)
-% - "Today we'll be presenting our project on applying reinforcement learning algorithms to the classic Snake game"
-% - "We'll cover the fundamentals of RL, explore different algorithms, and show you how our trained agents learned to play"
-% - Transition: "Let's start with an introduction to what reinforcement learning actually is..."
+%===============================================
+% PRESENTER 1: Introduction & What is RL
+%===============================================
+\presentertitle{1}{Introduction \& What is RL}
 
-\section{Theory of RL}
 %-----------------------------------------------
-% Slide 2: Section - Theory of RL
+% Slide: Types of Machine Learning
 %-----------------------------------------------
-\begin{frame}
-    \begin{center}
-        \vfill
-        {\Huge \textbf{Theory of RL}}
-        \vfill
-    \end{center}
+\begin{frame}{Types of Machine Learning}
+    \begin{itemize}
+        \item \textbf{Supervised Learning}
+        \begin{itemize}
+            \item Requires: Labeled data
+            \item Used for: Classification, Regression
+        \end{itemize}
+
+        \vspace{0.5cm}
+        \item \textbf{Unsupervised Learning}
+        \begin{itemize}
+            \item Requires: Data (no labels)
+            \item Used for: Clustering, Dimensionality reduction
+        \end{itemize}
+
+        \vspace{0.5cm}
+        \item \textbf{Reinforcement Learning}
+        \begin{itemize}
+            \item Requires: Reward engineering
+            \item Used for: Sequential decision making, Control
+        \end{itemize}
+    \end{itemize}
 \end{frame}
 
 %-----------------------------------------------
-% Slide 3: What is Reinforcement Learning?
+% Slide: What is Reinforcement Learning?
 %-----------------------------------------------
 \begin{frame}{What is Reinforcement Learning?}
     \textbf{Learning through interaction}
@@ -93,13 +139,8 @@
     \end{itemize}
 \end{frame}
 
-% Speaker Notes:
-% - "RL is a type of machine learning where an agent learns by interacting with an environment"
-% - "Unlike supervised learning, there's no labeled data - the agent learns from trial and error"
-% - Transition: "Let's visualize how this works..."
-
 %-----------------------------------------------
-% Slide 3: The RL Loop
+% Slide: The RL Loop
 %-----------------------------------------------
 \begin{frame}{The RL Loop}
     \begin{center}
@@ -121,15 +162,8 @@
     \end{center}
 \end{frame}
 
-% Speaker Notes:
-% - "This diagram shows the fundamental RL loop"
-% - "The agent observes the current state, takes an action"
-% - "The environment responds with a new state and a reward"
-% - "Over time, it learns which actions lead to higher rewards"
-% - Transition: "Now let's look at how RL has evolved over time..."
-
 %-----------------------------------------------
-% Slide 4: History of RL
+% Slide: History of RL
 %-----------------------------------------------
 \begin{frame}{History of Reinforcement Learning}
     \begin{itemize}
@@ -142,208 +176,673 @@
         \item \textbf{2019} -- OpenAI Five: Beats world champions at Dota 2
         \item \textbf{2022+} -- RLHF: Training large language models
     \end{itemize}
-
 \end{frame}
 
-% Speaker Notes:
-% - "RL has a rich history spanning over 70 years"
-% - "Bellman laid the mathematical foundation with dynamic programming"
-% - "The breakthrough came in 2013 when DeepMind combined deep learning with RL"
-% - "DQN learned to play Atari games from raw pixels - no human knowledge needed"
-% - "Today, RL is used to train large language models like ChatGPT through RLHF"
-% - Transition: "Now let's see how we apply RL to our Snake game..."
+%-----------------------------------------------
+% Slide: Roadmap
+%-----------------------------------------------
+\begin{frame}{Today's Roadmap}
+    \begin{enumerate}
+        \item \textbf{Introduction} -- What is RL? (You are here)
+        \item \textbf{Game \& Agent Foundations} -- Snake as MDP
+        \item \textbf{Algorithms} -- DQN, PPO, and training
+        \item \textbf{Feature Engineering} -- State representations
+        \item \textbf{???} -- Something challenging...
+        \item \textbf{Conclusion} -- Limitations and future development
+    \end{enumerate}
+\end{frame}
+
+%===============================================
+% PRESENTER 2: Game & Agent Foundations
+%===============================================
+\presentertitle{2}{Game \& Agent Foundations}
 
 %-----------------------------------------------
-% Slide 5: Markov Decision Process (MDP)
+% Slide: What is an MDP?
 %-----------------------------------------------
 \begin{frame}{Markov Decision Process (MDP)}
-    \textbf{Mathematical framework for RL problems}
+    \textbf{Mathematical framework for sequential decision making}
 
-    \vspace{0.3cm}
+    \vspace{0.5cm}
     An MDP is defined by a tuple $(S, A, P, R, \gamma)$:
     \begin{itemize}
-        \item $S$ -- Set of \textbf{states}
-        \item $A$ -- Set of \textbf{actions}
-        \item $P(s'|s,a)$ -- \textbf{Transition probability}
-        \item $R(s,a,s')$ -- \textbf{Reward function}
-        \item $\gamma \in [0,1]$ -- \textbf{Discount factor} (importance of future rewards)
+        \item $S$ -- Set of \textbf{states} (all possible situations)
+        \item $A$ -- Set of \textbf{actions} (what agent can do)
+        \item $P(s'|s,a)$ -- \textbf{Transition probability} (dynamics)
+        \item $R(s,a,s')$ -- \textbf{Reward function} (feedback)
+        \item $\gamma \in [0,1]$ -- \textbf{Discount factor} (future importance)
+    \end{itemize}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: The Agent-Environment Loop
+%-----------------------------------------------
+\begin{frame}{The Agent-Environment Loop}
+    \textbf{A trajectory of experience:}
+
+    \vspace{0.5cm}
+    \begin{center}
+        $s_0 \xrightarrow{a_0} r_0, s_1 \xrightarrow{a_1} r_1, s_2 \xrightarrow{a_2} r_2, s_3 \xrightarrow{a_3} \cdots$
+    \end{center}
+
+    \vspace{0.5cm}
+    \begin{center}
+        \begin{tikzpicture}[scale=0.8]
+            % Agent
+            \node[draw, rectangle, fill=blue!20, minimum width=2cm, minimum height=1cm] (agent) at (0,0) {Agent};
+            % Environment
+            \node[draw, rectangle, fill=green!20, minimum width=2cm, minimum height=1cm] (env) at (5,0) {Environment};
+
+            % Arrows
+            \draw[->, thick] (agent.east) -- node[above] {$a_t$} (env.west);
+            \draw[->, thick] (env.south) -- ++(0,-0.8) -- node[below] {$r_t, s_{t+1}$} ++(-5,0) -- (agent.south);
+        \end{tikzpicture}
+    \end{center}
+
+    \vspace{0.5cm}
+    \textbf{Goal:} Find actions that maximize cumulative reward
+    \[
+    G_t = r_t + \gamma r_{t+1} + \gamma^2 r_{t+2} + \cdots = \sum_{k=0}^{\infty} \gamma^k r_{t+k}
+    \]
+\end{frame}
+
+%-----------------------------------------------
+% Slide: Snake Game Introduction
+%-----------------------------------------------
+\begin{frame}{The Snake Game}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \textbf{Rules:}
+            \begin{itemize}
+                \item Snake moves continuously
+                \item Eating food makes snake grow
+                \item Game ends on collision
+            \end{itemize}
+
+        \end{column}
+
+        \begin{column}{0.5\textwidth}
+            \begin{center}
+                \begin{tikzpicture}[scale=0.5]
+                    \draw[gray!30] (0,0) grid (8,8);
+                    \draw[black, thick] (0,0) rectangle (8,8);
+
+                    % Snake
+                    \fill[green!50] (2,4) rectangle (3,5);
+                    \fill[green!50] (3,4) rectangle (4,5);
+                    \fill[green!50] (4,4) rectangle (5,5);
+                    \fill[green!70!black] (5,4) rectangle (6,5);
+                    \node at (5.5,4.5) {\tiny H};
+
+                    % Food
+                    \fill[red!60] (6,6) rectangle (7,7);
+
+                    % Direction arrow
+                    \draw[->, blue, very thick] (6,4.5) -- (7,4.5);
+                \end{tikzpicture}
+            \end{center}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: Snake MDP - State Space
+%-----------------------------------------------
+\begin{frame}{Snake as MDP: State Space (Attempt 1)}
+    \textbf{What information defines the current situation?}
+
+    \vspace{0.5cm}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \begin{itemize}
+                \item Grid size (e.g., 10x10)
+                \item Snake head position $(x, y)$
+                \item Snake body positions
+                \item Food location $(f_x, f_y)$
+            \end{itemize}
+
+            \vspace{0.3cm}
+            {\color{red} Is this enough?}
+        \end{column}
+
+        \begin{column}{0.5\textwidth}
+            \begin{center}
+                \begin{tikzpicture}[scale=0.45]
+                    \draw[gray!30] (0,0) grid (8,8);
+                    \draw[black, thick] (0,0) rectangle (8,8);
+
+                    % Snake with labels
+                    \fill[green!50] (2,4) rectangle (3,5);
+                    \fill[green!50] (3,4) rectangle (4,5);
+                    \fill[green!50] (4,4) rectangle (5,5);
+                    \fill[green!70!black] (5,4) rectangle (6,5);
+
+                    % Food
+                    \fill[red!60] (6,6) rectangle (7,7);
+
+                    % Labels
+                    \node[below] at (5.5,4) {\tiny (5,4)};
+                    \node[below] at (6.5,6) {\tiny food};
+                \end{tikzpicture}
+            \end{center}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: Markov Property
+%-----------------------------------------------
+\begin{frame}{The Markov Property}
+    \textbf{Key requirement for MDPs:}
+
+    \vspace{0.5cm}
+    \begin{center}
+        \textit{``The future depends only on the present, not the past''}
+    \end{center}
+
+    \vspace{0.5cm}
+    \[
+    P(s_{t+1} | s_t, a_t) = P(s_{t+1} | s_t, a_t, s_{t-1}, a_{t-1}, \ldots)
+    \]
+
+    \vspace{0.5cm}
+    \textbf{Problem with our state:}
+    \begin{itemize}
+        \item Same position can have different valid moves
+        \item Which way is the snake facing?
+        \item Without direction, we can't predict the next state!
     \end{itemize}
 
     \vspace{0.3cm}
-    \textbf{Markov Property (Memorylessness):}
     \begin{center}
-        \begin{tabular}{rcl}
-            MDP: & $P(s_{t+1}|s_t, a_t)$ & $= P(s_{t+1}|s_0, a_0, ..., s_t, a_t)$ \\[0.2cm]
-            Exponential: & $P(X > s+t \mid X > s)$ & $= P(X > t)$
+        \fbox{State must contain ALL information needed for decision}
+    \end{center}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: Snake MDP - State Space (Complete)
+%-----------------------------------------------
+\begin{frame}{Snake as MDP: State Space (Complete)}
+    \textbf{Adding current direction to satisfy Markov property:}
+
+    \vspace{0.5cm}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \begin{itemize}
+                \item Grid size (e.g., 10x10)
+                \item Snake head position $(x, y)$
+                \item Snake body positions
+                \item {\color{green!50!black} \textbf{Current direction}}
+                \item Food location $(f_x, f_y)$
+            \end{itemize}
+
+            \vspace{0.3cm}
+            {\color{green!50!black} Now the state is complete!}
+        \end{column}
+
+        \begin{column}{0.5\textwidth}
+            \begin{center}
+                \begin{tikzpicture}[scale=0.45]
+                    \draw[gray!30] (0,0) grid (8,8);
+                    \draw[black, thick] (0,0) rectangle (8,8);
+
+                    % Snake with labels
+                    \fill[green!50] (2,4) rectangle (3,5);
+                    \fill[green!50] (3,4) rectangle (4,5);
+                    \fill[green!50] (4,4) rectangle (5,5);
+                    \fill[green!70!black] (5,4) rectangle (6,5);
+
+                    % Food
+                    \fill[red!60] (6,6) rectangle (7,7);
+
+                    % Labels
+                    \node[below] at (5.5,4) {\tiny (5,4)};
+                    \node[below] at (6.5,6) {\tiny food};
+                    \draw[->, blue, thick] (6,4.5) -- (6.8,4.5);
+                    \node[right] at (6.8,4.5) {\tiny dir};
+                \end{tikzpicture}
+            \end{center}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: Snake MDP - Action Space
+%-----------------------------------------------
+\begin{frame}{Snake as MDP: Action Space}
+    \textbf{What can the agent do?}
+
+    \vspace{0.3cm}
+    \begin{columns}
+        \begin{column}{0.48\textwidth}
+            \centering
+            \textbf{Absolute (4 actions)}
+
+            \vspace{0.2cm}
+            \begin{tikzpicture}[scale=0.5]
+                % Snake head
+                \fill[green!70!black] (2,2) rectangle (3,3);
+                \node at (2.5,2.5) {\tiny H};
+
+                % Action arrows
+                \draw[->, blue, thick] (3,2.5) -- (4,2.5);
+                \node[right] at (4,2.5) {\tiny Right};
+
+                \draw[->, blue, thick] (2,2.5) -- (1,2.5);
+                \node[left] at (1,2.5) {\tiny Left};
+
+                \draw[->, blue, thick] (2.5,3) -- (2.5,4);
+                \node[above] at (2.5,4) {\tiny Up};
+
+                \draw[->, blue, thick] (2.5,2) -- (2.5,1);
+                \node[below] at (2.5,1) {\tiny Down};
+            \end{tikzpicture}
+
+            \vspace{0.2cm}
+            {\small Up, Down, Left, Right}
+
+            {\footnotesize One action always = death}
+        \end{column}
+
+        \begin{column}{0.48\textwidth}
+            \centering
+            \textbf{Relative (3 actions)} {\color{green!50!black} $\checkmark$}
+
+            \vspace{0.2cm}
+            \begin{tikzpicture}[scale=0.5]
+                % Snake head
+                \fill[green!70!black] (2,2) rectangle (3,3);
+                \node at (2.5,2.5) {\tiny H};
+
+                % Body behind
+                \fill[green!50] (1,2) rectangle (2,3);
+
+                % Action arrows
+                \draw[->, blue, thick] (3,2.5) -- (4,2.5);
+                \node[right] at (4,2.5) {\tiny Str};
+
+                \draw[->, orange, thick] (2.5,3) -- (2.5,4);
+                \node[above] at (2.5,4) {\tiny Left};
+
+                \draw[->, purple, thick] (2.5,2) -- (2.5,1);
+                \node[below] at (2.5,1) {\tiny Right};
+
+                % X for backward
+                \draw[red, thick] (1.3,2.3) -- (1.7,2.7);
+                \draw[red, thick] (1.3,2.7) -- (1.7,2.3);
+            \end{tikzpicture}
+
+            \vspace{0.2cm}
+            {\small Straight, Left, Right}
+
+            {\footnotesize No invalid actions}
+        \end{column}
+    \end{columns}
+
+    \vspace{0.3cm}
+    \begin{center}
+        \fbox{We use relative actions: $|A| = 3$}
+    \end{center}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: Snake MDP - Rewards
+%-----------------------------------------------
+\begin{frame}{Snake as MDP: Reward Function}
+    \textbf{What feedback does the agent receive?}
+
+    \vspace{0.5cm}
+    \begin{center}
+        \begin{tabular}{lc}
+            \toprule
+            \textbf{Event} & \textbf{Reward} \\
+            \midrule
+            Eat food & $+10$ \\
+            Hit wall & $-10$ \\
+            Hit self & $-10$ \\
+            Each step & $-0.01$ (small penalty) \\
+            \bottomrule
         \end{tabular}
     \end{center}
 
-    \vspace{0.2cm}
-    \textit{The future depends only on the present, not the past.}
+    \vspace{0.5cm}
+    \textbf{Why step penalty?}
+    \begin{itemize}
+        \item Encourages efficiency
+        \item Prevents infinite loops
+        \item Balances exploration vs exploitation
+    \end{itemize}
 \end{frame}
 
-% Speaker Notes:
-% - "An MDP provides the mathematical framework for RL"
-% - "States describe everything the agent needs to know about the environment"
-% - "Actions are what the agent can do"
-% - "The transition function tells us probability of ending up in each state"
-% - "The Markov property means the current state contains all relevant information"
-% - Transition: "But what does this mean for Snake?"
+%-----------------------------------------------
+% Slide: Snake MDP - Terminal States
+%-----------------------------------------------
+\begin{frame}{Snake as MDP: Terminal States}
+    \textbf{When does the episode end?}
+
+    \vspace{0.5cm}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \textbf{Wall Collision:}
+            \begin{center}
+                \begin{tikzpicture}[scale=0.4]
+                    \draw[gray!30] (0,0) grid (6,6);
+                    \draw[black, very thick] (0,0) rectangle (6,6);
+                    \fill[green!50] (3,5) rectangle (4,6);
+                    \fill[green!50] (4,5) rectangle (5,6);
+                    \fill[green!70!black] (5,5) rectangle (6,6);
+                    \draw[red, very thick] (6,5) -- (6,6);
+                    \node[red] at (3,3) {\large Game Over!};
+                \end{tikzpicture}
+            \end{center}
+        \end{column}
+
+        \begin{column}{0.5\textwidth}
+            \textbf{Self Collision:}
+            \begin{center}
+                \begin{tikzpicture}[scale=0.4]
+                    \draw[gray!30] (0,0) grid (6,6);
+                    \draw[black, thick] (0,0) rectangle (6,6);
+                    % Snake eating itself
+                    \fill[green!50] (2,3) rectangle (3,4);
+                    \fill[green!50] (3,3) rectangle (4,4);
+                    \fill[green!50] (4,3) rectangle (5,4);
+                    \fill[green!50] (4,2) rectangle (5,3);
+                    \fill[green!50] (3,2) rectangle (4,3);
+                    \fill[green!70!black] (3,3) rectangle (4,4);
+                    \draw[red, very thick] (3,3) rectangle (4,4);
+                    \node[red] at (3,5) {\large Game Over!};
+                \end{tikzpicture}
+            \end{center}
+        \end{column}
+    \end{columns}
+\end{frame}
 
 %-----------------------------------------------
-% Slide: Why Direction Matters in Snake
+% Slide: Policy
 %-----------------------------------------------
-\begin{frame}{Why Direction Matters in Snake}
+\begin{frame}{Policy Function $\pi$}
+    \textbf{The agent's developing strategy}
+
+    \vspace{0.5cm}
+    A policy $\pi$ maps states to actions:
+    \[
+    \pi: S \rightarrow A \quad \text{or} \quad \pi(a|s) = P(a_t = a | s_t = s)
+    \]
+
+    \vspace{0.5cm}
+    \begin{itemize}
+        \item \textbf{Deterministic:} $\pi(s) = a$ (one action per state)
+        \item \textbf{Stochastic:} $\pi(a|s)$ (probability distribution over actions)
+    \end{itemize}
+
+    \vspace{0.5cm}
+    \begin{center}
+        \fbox{Goal of RL: Find the \textbf{optimal policy} $\pi^*$}
+    \end{center}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: Policy Example
+%-----------------------------------------------
+\begin{frame}{Policy in Action}
     \begin{columns}
         \begin{column}{0.5\textwidth}
             \begin{center}
-                \textbf{State = $(x, y)$}
+                \begin{tikzpicture}[scale=0.5]
+                    \draw[gray!30] (0,0) grid (6,6);
+                    \draw[black, thick] (0,0) rectangle (6,6);
 
-                \vspace{0.3cm}
-                \begin{tikzpicture}[scale=0.6]
-                    \draw[step=1, gray, thin] (0,0) grid (4,4);
-                    \fill[green!70!black] (2,2) rectangle (3,3);
-                    \node at (2.5,2.5) {\tiny \textbf{H}};
-                    % Question marks for possible directions
-                    \draw[->, blue, thick, dashed] (2.5,3) -- (2.5,3.7);
-                    \draw[->, blue, thick, dashed] (2.5,2) -- (2.5,1.3);
-                    \draw[->, blue, thick, dashed] (3,2.5) -- (3.7,2.5);
-                    \draw[->, blue, thick, dashed] (2,2.5) -- (1.3,2.5);
-                    \node at (2.5,4.2) {\small ?};
-                    \node at (2.5,0.8) {\small ?};
-                    \node at (4.2,2.5) {\small ?};
-                    \node at (0.8,2.5) {\small ?};
+                    % Snake body
+                    \fill[green!50] (1,2) rectangle (2,3);
+                    \fill[green!50] (2,2) rectangle (3,3);
+                    \fill[green!70!black] (3,2) rectangle (4,3);
+                    \node at (3.5,2.5) {\tiny H};
+
+                    % Food (on the Left side - up from snake's perspective)
+                    \fill[red!60] (3,5) rectangle (4,6);
+
+                    % Action arrows from head
+                    \draw[->, blue, thick] (4,2.5) -- (4.8,2.5);
+                    \node[right, blue] at (4.8,2.5) {\tiny Str};
+                    \draw[->, green!70!black, thick] (3.5,3) -- (3.5,3.8);
+                    \node[above, green!70!black] at (3.5,3.8) {\tiny L};
+                    \draw[->, orange, thick] (3.5,2) -- (3.5,1.2);
+                    \node[below, orange] at (3.5,1.2) {\tiny R};
                 \end{tikzpicture}
 
-                \vspace{0.2cm}
-                {\color{red} Cannot predict next state}
-
-                \vspace{0.1cm}
-                {\small Violates Markov property}
+                \vspace{0.3cm}
+                {\small Current state $s$}
             \end{center}
         \end{column}
 
         \begin{column}{0.5\textwidth}
             \begin{center}
-                \textbf{State = $(x, y, v_x, v_y)$}
+                $\pi(a|s)$:
+
+                \vspace{0.3cm}
+                \begin{tikzpicture}[scale=0.7]
+                    % Axes
+                    \draw[->] (0,0) -- (4,0) node[right] {\scriptsize Action};
+                    \draw[->] (0,0) -- (0,2.5) node[above] {\scriptsize P};
+                    % Bars
+                    \fill[blue!60] (0.3,0) rectangle (0.9,0.4);
+                    \fill[green!70] (1.3,0) rectangle (1.9,1.8);
+                    \fill[blue!60] (2.3,0) rectangle (2.9,0.3);
+                    % Labels
+                    \node[below] at (0.6,-0.1) {\scriptsize Str};
+                    \node[below] at (1.6,-0.1) {\scriptsize L};
+                    \node[below] at (2.6,-0.1) {\scriptsize R};
+                    % Probabilities
+                    \node[above] at (0.6,0.4) {\tiny 20\%};
+                    \node[above] at (1.6,1.8) {\tiny 65\%};
+                    \node[above] at (2.6,0.3) {\tiny 15\%};
+                \end{tikzpicture}
+
+                \vspace{0.3cm}
+                {\small Left has highest probability}\\
+                {\small (food is up-right)}
+            \end{center}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: State-Value Function
+%-----------------------------------------------
+\begin{frame}{State-Value Function $V(s)$}
+    \textbf{How good is it to \textit{be} in state $s$?}
+
+    \vspace{0.5cm}
+    \[
+    V^\pi(s) = \mathbb{E}_\pi\left[ G_t \mid s_t = s \right] = \mathbb{E}_\pi\left[ \sum_{k=0}^{\infty} \gamma^k r_{t+k} \mid s_t = s \right]
+    \]
+
+    \vspace{0.5cm}
+    \begin{itemize}
+        \item Expected cumulative reward starting from state $s$
+        \item Following policy $\pi$
+    \end{itemize}
+
+    \vspace{0.5cm}
+    \begin{center}
+        \textit{``If I'm in this state, how much reward can I expect?''}
+    \end{center}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: State-Value Example
+%-----------------------------------------------
+\begin{frame}{State Values in Snake}
+    \begin{center}
+        \begin{tikzpicture}[scale=0.7]
+            \draw[gray!30] (0,0) grid (6,6);
+            \draw[black, thick] (0,0) rectangle (6,6);
+
+            % Food
+            \fill[red!60] (4,4) rectangle (5,5);
+
+            % Value labels in cells (higher near food)
+            \node at (0.5,5.5) {\tiny 2};
+            \node at (1.5,5.5) {\tiny 3};
+            \node at (2.5,5.5) {\tiny 4};
+            \node at (3.5,5.5) {\tiny 6};
+            \node at (4.5,5.5) {\tiny 7};
+            \node at (5.5,5.5) {\tiny 5};
+
+            \node at (0.5,4.5) {\tiny 3};
+            \node at (1.5,4.5) {\tiny 4};
+            \node at (2.5,4.5) {\tiny 6};
+            \node at (3.5,4.5) {\tiny 8};
+            \node at (4.5,4.5) {\tiny 10};
+            \node at (5.5,4.5) {\tiny 6};
+
+            \node at (0.5,3.5) {\tiny 2};
+            \node at (1.5,3.5) {\tiny 3};
+            \node at (2.5,3.5) {\tiny 5};
+            \node at (3.5,3.5) {\tiny 6};
+            \node at (4.5,3.5) {\tiny 7};
+            \node at (5.5,3.5) {\tiny 5};
+
+            \node at (0.5,2.5) {\tiny 1};
+            \node at (1.5,2.5) {\tiny 2};
+            \node at (2.5,2.5) {\tiny 3};
+            \node at (3.5,2.5) {\tiny 4};
+            \node at (4.5,2.5) {\tiny 5};
+            \node at (5.5,2.5) {\tiny 4};
+
+            \node at (0.5,1.5) {\tiny 0};
+            \node at (1.5,1.5) {\tiny 1};
+            \node at (2.5,1.5) {\tiny 2};
+            \node at (3.5,1.5) {\tiny 3};
+            \node at (4.5,1.5) {\tiny 4};
+            \node at (5.5,1.5) {\tiny 3};
+
+            \node at (0.5,0.5) {\tiny -1};
+            \node at (1.5,0.5) {\tiny 0};
+            \node at (2.5,0.5) {\tiny 1};
+            \node at (3.5,0.5) {\tiny 2};
+            \node at (4.5,0.5) {\tiny 3};
+            \node at (5.5,0.5) {\tiny 2};
+        \end{tikzpicture}
+
+        \vspace{0.5cm}
+        {\small Values increase closer to food}\\
+        {\small $V(s)$ guides the agent toward rewards}
+    \end{center}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: Action-Value Function
+%-----------------------------------------------
+\begin{frame}{Action-Value Function $Q(s,a)$}
+    \textbf{How good is it to \textit{take action} $a$ in state $s$?}
+
+    \vspace{0.5cm}
+    \[
+    Q^\pi(s,a) = \mathbb{E}_\pi\left[ G_t \mid s_t = s, a_t = a \right]
+    \]
+
+    \vspace{0.5cm}
+    \begin{itemize}
+        \item Expected cumulative reward after taking action $a$ in state $s$
+        \item Then following policy $\pi$
+    \end{itemize}
+
+    \vspace{0.5cm}
+    \begin{center}
+        \textit{``If I take this action here, how much reward can I expect?''}
+    \end{center}
+
+    \vspace{0.3cm}
+    \begin{center}
+        \fbox{This is what DQN learns!}
+    \end{center}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: From Q to Policy
+%-----------------------------------------------
+\begin{frame}{From Q-Values to Policy}
+    \begin{center}
+        \textbf{The policy uses Q-values to decide action probabilities}
+    \end{center}
+
+    \vspace{0.5cm}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \begin{center}
+                \textbf{Q-values for state $s$:}
+
+                \vspace{0.3cm}
+                \begin{tabular}{lc}
+                    $Q(s, \text{Straight})$ & $= 3$ \\
+                    $Q(s, \text{Left})$ & $= 8$ \\
+                    $Q(s, \text{Right})$ & $= 2$ \\
+                \end{tabular}
+            \end{center}
+        \end{column}
+
+        \begin{column}{0.1\textwidth}
+            \begin{center}
+                $\Rightarrow$
+            \end{center}
+        \end{column}
+
+        \begin{column}{0.4\textwidth}
+            \begin{center}
+                \textbf{Policy $\pi(a|s)$:}
 
                 \vspace{0.3cm}
                 \begin{tikzpicture}[scale=0.6]
-                    \draw[step=1, gray, thin] (0,0) grid (4,4);
-                    \fill[green!70!black] (2,2) rectangle (3,3);
-                    \node at (2.5,2.5) {\tiny \textbf{H}};
-                    % Single clear direction
-                    \draw[->, red, ultra thick] (3,2.5) -- (3.9,2.5);
+                    \draw[->] (0,0) -- (3.5,0);
+                    \draw[->] (0,0) -- (0,2.2);
+                    \fill[blue!60] (0.2,0) rectangle (0.8,0.5);
+                    \fill[green!70] (1.2,0) rectangle (1.8,1.8);
+                    \fill[blue!60] (2.2,0) rectangle (2.8,0.3);
+                    \node[below] at (0.5,-0.1) {\tiny Str};
+                    \node[below] at (1.5,-0.1) {\tiny L};
+                    \node[below] at (2.5,-0.1) {\tiny R};
+                    % Q-values above bars
+                    \node[above] at (0.5,0.5) {\tiny Q=3};
+                    \node[above] at (1.5,1.8) {\tiny Q=8};
+                    \node[above] at (2.5,0.3) {\tiny Q=2};
                 \end{tikzpicture}
-
-                \vspace{0.2cm}
-                {\color{green!50!black} Next state is deterministic}
-
-                \vspace{0.1cm}
-                {\small Markov property satisfied}
             \end{center}
         \end{column}
     \end{columns}
 
     \vspace{0.5cm}
     \begin{center}
-        \textit{State must contain all information needed to predict the future.}
+        \fbox{Higher Q-value $\rightarrow$ Higher probability}
     \end{center}
 \end{frame}
 
-% Speaker Notes:
-% - "In Snake, you can't turn 180 degrees - that's instant death"
-% - "If we only store position, two identical grids could have different valid moves"
-% - "By including direction, the state now tells us everything we need"
-% - "This is a key insight when designing state representations"
-% - Transition: "Now let's look at value functions..."
-
 %-----------------------------------------------
-% Slide: Policy Function
+% Slide: Policy-Q Cycle
 %-----------------------------------------------
-\begin{frame}{Policy Function}
+\begin{frame}{The Learning Cycle}
     \begin{center}
-        \begin{tikzpicture}
-            \node at (0,0) {\Huge $\pi(a|s)$};
-            % Tooltip for 'a'
-            \draw[->, thick] (-0.5,0.6) -- (-0.5,1.2);
-            \node[above, align=center] at (-0.5,1.2) {\small action};
-            % Tooltip for 's'
-            \draw[->, thick] (0.7,0.6) -- (0.7,1.2);
-            \node[above, align=center] at (0.7,1.2) {\small state};
+        \begin{tikzpicture}[scale=1.2]
+            % Nodes
+            \node[draw, rectangle, rounded corners, fill=blue!20, minimum width=3cm, minimum height=1.2cm] (Q) at (0,0) {$Q(s,a)$};
+            \node[draw, rectangle, rounded corners, fill=green!20, minimum width=3cm, minimum height=1.2cm] (pi) at (6,0) {$\pi(a|s)$};
+            \node[draw, rectangle, rounded corners, fill=orange!20, minimum width=2.5cm, minimum height=1cm] (env) at (3,-2.5) {Environment};
+
+            % Arrows
+            \draw[->, very thick] (Q.east) -- node[above] {\small determines} (pi.west);
+            \draw[->, very thick] (pi.south) -- node[right, align=left, xshift=0.3cm] {\small selects\\[-0.1cm]\small actions} (env.east);
+            \draw[->, very thick] (env.west) -- node[left, align=right, xshift=-0.3cm] {\small rewards\\[-0.1cm]\small improve} (Q.south);
         \end{tikzpicture}
+
+        \vspace{0.8cm}
+        \begin{enumerate}
+            \item Q-function estimates action values
+            \item Policy uses Q to select actions
+            \item Environment gives rewards
+            \item Rewards update Q-function
+        \end{enumerate}
     \end{center}
-
-    \vspace{0.5cm}
-    \begin{itemize}
-        \item Probability of taking action $a$ in state $s$
-        \item Think of it as the agent's \textbf{strategy}
-        \item \textbf{Goal:} Find optimal policy $\pi^*$ \quad {\small ($*$ denotes optimal)}
-    \end{itemize}
-\end{frame}
-
-% Speaker Notes:
-% - "A policy tells the agent what to do in each state"
-% - "It maps states to actions (or probability distributions over actions)"
-% - "Our goal in RL is to find the best policy"
-% - "The asterisk notation means optimal"
-
-%-----------------------------------------------
-% Slide: Value Function
-%-----------------------------------------------
-\begin{frame}{Value Function}
-    \begin{center}
-        \begin{tikzpicture}
-            \node at (0,0) {\Huge $V^\pi(s)$};
-            % Tooltip for 'pi'
-            \draw[->, thick] (-0.5,0.8) -- (-0.5,1.4);
-            \node[above, align=center] at (-0.5,1.4) {\small policy};
-            % Tooltip for 's'
-            \draw[->, thick] (0.6,0.6) -- (0.6,1.2);
-            \node[above, align=center] at (0.6,1.2) {\small state};
-        \end{tikzpicture}
-    \end{center}
-
-    \vspace{0.5cm}
-    \begin{itemize}
-        \item Expected cumulative reward starting from state $s$
-        \item Think of it as \textbf{how good} it is to be in a state
-        \item Follows policy $\pi$ to estimate future rewards
-    \end{itemize}
-
-    \vspace{0.3cm}
-    \[
-    V^\pi(s) = \mathbb{E}_\pi \left[ \sum_{t=0}^{\infty} \gamma^t R_{t+1} \mid S_0 = s \right]
-    \]
-\end{frame}
-
-%-----------------------------------------------
-% Slide: Action-Value Function (Q-Function)
-%-----------------------------------------------
-\begin{frame}{Action-Value Function (Q-Function)}
-    \begin{center}
-        \begin{tikzpicture}
-            \node at (0,0) {\Huge $Q^\pi(s, a)$};
-            % Tooltip for 's'
-            \draw[->, thick] (-0.1,0.6) -- (-0.1,1.2);
-            \node[above, align=center] at (-0.1,1.2) {\small state};
-            % Tooltip for 'a'
-            \draw[->, thick] (0.9,0.6) -- (0.9,1.2);
-            \node[above, align=center] at (0.9,1.2) {\small action};
-        \end{tikzpicture}
-    \end{center}
-
-    \vspace{0.5cm}
-    \begin{itemize}
-        \item Expected cumulative reward taking action $a$ in state $s$
-        \item Think of it as \textbf{how good} it is to take an action
-        \item Foundation of Q-Learning and DQN
-    \end{itemize}
-
-    \vspace{0.3cm}
-    \[
-    Q^\pi(s,a) = \mathbb{E}_\pi \left[ \sum_{t=0}^{\infty} \gamma^t R_{t+1} \mid S_0 = s, A_0 = a \right]
-    \]
 \end{frame}
 
 %-----------------------------------------------
@@ -354,30 +853,16 @@
         {\large The recursive relationship that makes RL possible}
     \end{center}
 
-    \vspace{0.3cm}
-    \begin{center}
-        \begin{tikzpicture}
-            \node at (0,0) {\Large $Q^*(s,a) = R(s,a) + \gamma \max_{a'} Q^*(s',a')$};
-            % Tooltip for Q*(s,a)
-            \draw[->, thick] (-3.5,0.5) -- (-3.5,1.1);
-            \node[above, align=center] at (-3.5,1.1) {\scriptsize optimal value};
-            % Tooltip for R(s,a)
-            \draw[->, thick] (-1.2,0.5) -- (-1.2,1.1);
-            \node[above, align=center] at (-1.2,1.1) {\scriptsize immediate reward};
-            % Tooltip for gamma
-            \draw[->, thick] (0.3,0.5) -- (0.3,1.1);
-            \node[above, align=center] at (0.3,1.1) {\scriptsize discount};
-            % Tooltip for max Q*(s',a')
-            \draw[->, thick] (2.5,0.5) -- (2.5,1.1);
-            \node[above, align=center] at (2.5,1.1) {\scriptsize best future value};
-        \end{tikzpicture}
-    \end{center}
+    \vspace{0.5cm}
+    \[
+    Q^*(s,a) = R(s,a) + \gamma \max_{a'} Q^*(s',a')
+    \]
 
     \vspace{0.5cm}
     \begin{itemize}
-        \item Value of action = Immediate reward + Discounted future value
-        \item $\gamma$ = discount factor (importance of future rewards)
-        \item Optimal Q-value is the best possible expected return
+        \item $R(s,a)$ = immediate reward
+        \item $\gamma$ = discount factor (importance of future)
+        \item $\max_{a'} Q^*(s',a')$ = best future value
     \end{itemize}
 
     \vspace{0.3cm}
@@ -386,983 +871,79 @@
     \end{center}
 \end{frame}
 
+%===============================================
+% PRESENTER 3: Building the Snake Agent
+%===============================================
+\presentertitle{3}{Building the Snake Agent}
+
 %-----------------------------------------------
-% Slide: Bellman Equation - Example
+% Slide: Q-Learning
 %-----------------------------------------------
-\begin{frame}{Bellman Equation in Action}
+\begin{frame}{Q-Learning}
+    \textbf{Update rule:}
+    \[
+    Q(s,a) \leftarrow Q(s,a) + \underbrace{\alpha}_{\text{learning rate}} \left[ \underbrace{r + \gamma \max_{a'} Q(s', a')}_{\text{TD target}} - Q(s,a) \right]
+    \]
+
+    \vspace{1cm}
+    \textbf{Problem:} Q-table doesn't scale to large state spaces!
+\end{frame}
+
+%-----------------------------------------------
+% Slide: Training a Neural Network for RL
+%-----------------------------------------------
+\begin{frame}{Training a Neural Network for RL}
+    \textbf{Loss Function:}
+
+    \vspace{1cm}
+    \[
+    L = \left( \underbrace{Q_\theta(s,a)}_{\text{predicted}} - \underbrace{(r + \gamma \max_{a'} Q(s',a'))}_{\text{TD target}} \right)^2
+    \]
+
+    \vspace{1cm}
     \begin{center}
-        \textit{Which path gives more reward?}
-    \end{center}
-
-    \vspace{0.3cm}
-    \begin{center}
-        \begin{tikzpicture}[scale=0.7]
-            % Grid
-            \draw[step=1, gray, thin] (0,0) grid (6,7);
-
-            % Agent is at (1,3)-(2,4), surrounding tiles: x:0-3, y:2-5
-            % Adjacent walls (full opacity - within 8 surrounding tiles)
-            \fill[black!70] (2,3) rectangle (3,4);  % right of agent
-            \fill[black!70] (2,4) rectangle (3,5);  % top-right of agent
-            \fill[black!70] (0,2) rectangle (1,3);  % bottom-left of agent
-            \fill[black!70] (0,4) rectangle (1,5);  % top-left of agent
-
-            % Foggy walls (everything else) - note: (0,3)-(1,4) is entrance, not wall
-            \fill[black!25] (3,3) rectangle (6,4);  % rest of horizontal wall
-            \fill[black!25] (0,0) rectangle (1,2);  % bottom of left wall
-            \fill[black!25] (0,5) rectangle (1,7);  % top of left wall
-            \fill[black!25] (4,6) rectangle (6,7);
-            \fill[black!25] (4,4) rectangle (5,6);
-            \fill[black!25] (2,5) rectangle (3,7);  % extended wall blocking upper path
-            \fill[black!25] (3,4) rectangle (4,6);  % extended inner wall
-
-            % Fill blocks around the path
-            \fill[black!25] (1,0) rectangle (6,1);  % row below path (foggy)
-            \fill[black!70] (2,2) rectangle (3,3);  % adjacent to agent
-            \fill[black!25] (3,2) rectangle (6,3);  % row above path (foggy)
-
-            % Goal (foggy)
-            \fill[green!20] (5,1) rectangle (6,2);
-            \node[opacity=0.4] at (5.5,1.5) {\small \textbf{G}};
-
-            % Agent position (second column, 4th row)
-            \fill[blue!70] (1,3) rectangle (2,4);
-            \node at (1.5,3.5) {\small \textbf{A}};
-
-            % Arrow going up from agent
-            \draw[->, blue, ultra thick] (1.5,4) -- (1.5,5);
-            \node[right] at (1.7,4.5) {\small $Q((3,1), \text{up}) = ?$};
-
-            % Arrow going down from agent
-            \draw[->, blue, ultra thick] (1.5,3) -- (1.5,2);
-            \node[right] at (1.7,2.5) {\small $Q((3,1), \text{down}) = ?$};
-        \end{tikzpicture}
+        \textit{No labels needed -- the target comes from the Bellman equation!}
     \end{center}
 \end{frame}
 
 %-----------------------------------------------
-% Slide: Path Up - Step 1
+% Slide: Deep Q-Networks (DQN)
 %-----------------------------------------------
-\begin{frame}{Bellman Equation: Path Up (Step 1)}
-    \begin{center}
-        \begin{tikzpicture}[scale=0.8]
-            \draw[step=1, gray, thin] (0,0) grid (6,7);
-
-            % Walls - 8 surrounding tiles of agent are full opacity, rest are foggy
-            % Agent is at (1,3)-(2,4), so surrounding tiles are x:0-3, y:2-5
-
-            % Adjacent walls (full opacity - within 8 surrounding tiles)
-            \fill[black!70] (2,3) rectangle (3,4);  % right of agent
-            \fill[black!70] (2,4) rectangle (3,5);  % top-right of agent
-            \fill[black!70] (0,2) rectangle (1,3);  % bottom-left of agent
-            \fill[black!70] (0,4) rectangle (1,5);  % top-left of agent
-
-            % Foggy walls (everything else)
-            \fill[black!25] (3,3) rectangle (6,4);  % rest of horizontal wall
-            \fill[black!25] (0,0) rectangle (1,2);  % bottom of left wall
-            \fill[black!25] (0,5) rectangle (1,7);  % top of left wall
-            \fill[black!25] (4,6) rectangle (6,7);
-            \fill[black!25] (4,4) rectangle (5,6);
-            \fill[black!25] (2,5) rectangle (3,7);  % extended wall blocking upper path
-            \fill[black!25] (3,4) rectangle (4,6);  % extended inner wall
-
-            % Fill blocks around the path
-            \fill[black!25] (1,0) rectangle (6,1);  % row below path (foggy)
-            \fill[black!70] (2,2) rectangle (3,3);  % adjacent to agent
-            \fill[black!25] (3,2) rectangle (6,3);  % row above path (foggy)
-
-            % Goal (foggy)
-            \fill[green!20] (5,1) rectangle (6,2);
-            \node[opacity=0.4] at (5.5,1.5) {\small \textbf{G}};
-
-            % Agent (full opacity)
-            \fill[blue!70] (1,3) rectangle (2,4);
-            \node at (1.5,3.5) {\small \textbf{A}};
-
-            % Start arrow
-            \draw[->, thick, blue!70] (-0.5,3.5) -- (0.9,3.5);
-            \node[left] at (-0.5,3.5) {\small Start};
-        \end{tikzpicture}
-    \end{center}
-    \vspace{0.2cm}
-    \begin{center}
-        $Q((1,3), \text{up}) = ?$
-    \end{center}
-\end{frame}
-
-%-----------------------------------------------
-% Slide: Path Up - Step 2
-%-----------------------------------------------
-\begin{frame}{Bellman Equation: Path Up (Step 2)}
-    \begin{center}
-        \begin{tikzpicture}[scale=0.8]
-            \draw[step=1, gray, thin] (0,0) grid (6,7);
-
-            % Agent at (1,4)-(2,5), surrounding tiles: x:0-3, y:3-6
-            % Adjacent walls (full opacity) - note: (0,3)-(1,4) is entrance, not wall
-            \fill[black!70] (2,3) rectangle (3,4);
-            \fill[black!70] (2,4) rectangle (3,5);
-            \fill[black!70] (2,5) rectangle (3,6);
-            \fill[black!70] (0,4) rectangle (1,5);
-            \fill[black!70] (0,5) rectangle (1,6);
-
-            % Foggy walls
-            \fill[black!25] (3,3) rectangle (6,4);
-            \fill[black!25] (0,0) rectangle (1,3);
-            \fill[black!25] (0,6) rectangle (1,7);
-            \fill[black!25] (4,6) rectangle (6,7);
-            \fill[black!25] (4,4) rectangle (5,6);
-            \fill[black!25] (3,4) rectangle (4,6);  % extended inner wall
-            \fill[black!25] (2,6) rectangle (3,7);  % extended wall blocking upper path
-
-            % Fill blocks around the path (all foggy - not adjacent)
-            \fill[black!25] (1,0) rectangle (6,1);  % row below path
-            \fill[black!25] (2,2) rectangle (6,3);  % row above path
-
-            % Goal (foggy)
-            \fill[green!20] (5,1) rectangle (6,2);
-            \node[opacity=0.4] at (5.5,1.5) {\small \textbf{G}};
-
-            \fill[blue!50] (1,3) rectangle (2,4);
-            \fill[blue!70] (1,4) rectangle (2,5);
-            \node at (1.5,4.5) {\small \textbf{A}};
-            % Start arrow
-            \draw[->, thick, blue!70] (-0.5,3.5) -- (0.9,3.5);
-            \node[left] at (-0.5,3.5) {\small Start};
-        \end{tikzpicture}
-    \end{center}
-    \vspace{0.2cm}
-    \begin{center}
-        $Q((1,4), \text{up}) = ?$
-    \end{center}
-\end{frame}
-
-%-----------------------------------------------
-% Slide: Path Up - Step 3
-%-----------------------------------------------
-\begin{frame}{Bellman Equation: Path Up (Step 3)}
-    \begin{center}
-        \begin{tikzpicture}[scale=0.8]
-            \draw[step=1, gray, thin] (0,0) grid (6,7);
-
-            % Agent at (1,5)-(2,6), surrounding tiles: x:0-3, y:4-7
-            % Adjacent walls (full opacity)
-            \fill[black!70] (2,4) rectangle (3,5);
-            \fill[black!70] (2,5) rectangle (3,6);
-            \fill[black!70] (2,6) rectangle (3,7);  % new wall blocking right
-            \fill[black!70] (0,4) rectangle (1,5);
-            \fill[black!70] (0,5) rectangle (1,6);
-            \fill[black!70] (0,6) rectangle (1,7);
-
-            % Foggy walls - note: (0,3)-(1,4) is entrance, not wall
-            \fill[black!25] (2,3) rectangle (6,4);
-            \fill[black!25] (0,0) rectangle (1,3);
-            \fill[black!25] (4,6) rectangle (6,7);
-            \fill[black!25] (4,4) rectangle (5,6);
-            \fill[black!25] (3,4) rectangle (4,6);  % extended inner wall
-
-            % Fill blocks around the path (all foggy - not adjacent)
-            \fill[black!25] (1,0) rectangle (6,1);  % row below path
-            \fill[black!25] (2,2) rectangle (6,3);  % row above path
-
-            % Goal (foggy)
-            \fill[green!20] (5,1) rectangle (6,2);
-            \node[opacity=0.4] at (5.5,1.5) {\small \textbf{G}};
-
-            \fill[blue!30] (1,3) rectangle (2,4);
-            \fill[blue!50] (1,4) rectangle (2,5);
-            \fill[blue!70] (1,5) rectangle (2,6);
-            \node at (1.5,5.5) {\small \textbf{A}};
-            % Start arrow
-            \draw[->, thick, blue!70] (-0.5,3.5) -- (0.9,3.5);
-            \node[left] at (-0.5,3.5) {\small Start};
-        \end{tikzpicture}
-    \end{center}
-    \vspace{0.2cm}
-    \begin{center}
-        $Q((1,5), \text{up}) = ?$
-    \end{center}
-\end{frame}
-
-%-----------------------------------------------
-% Slide: Path Up - Step 4
-%-----------------------------------------------
-\begin{frame}{Bellman Equation: Path Up (Step 4)}
-    \begin{center}
-        \begin{tikzpicture}[scale=0.8]
-            \draw[step=1, gray, thin] (0,0) grid (6,7);
-
-            % Agent at (1,6)-(2,7), surrounding tiles: x:0-3, y:5-7
-            % Adjacent walls (full opacity)
-            \fill[black!70] (2,5) rectangle (3,6);
-            \fill[black!70] (2,6) rectangle (3,7);  % wall blocking right
-            \fill[black!70] (0,5) rectangle (1,6);
-            \fill[black!70] (0,6) rectangle (1,7);
-
-            % Foggy walls - note: (0,3)-(1,4) is entrance, not wall
-            \fill[black!25] (2,3) rectangle (6,4);
-            \fill[black!25] (0,0) rectangle (1,3);
-            \fill[black!25] (0,4) rectangle (1,5);
-            \fill[black!25] (4,6) rectangle (6,7);
-            \fill[black!25] (2,4) rectangle (3,5);
-            \fill[black!25] (4,4) rectangle (5,6);
-            \fill[black!25] (3,4) rectangle (4,6);  % extended inner wall
-
-            % Fill blocks around the path (all foggy - not adjacent)
-            \fill[black!25] (1,0) rectangle (6,1);  % row below path
-            \fill[black!25] (2,2) rectangle (6,3);  % row above path
-
-            % Goal (foggy)
-            \fill[green!20] (5,1) rectangle (6,2);
-            \node[opacity=0.4] at (5.5,1.5) {\small \textbf{G}};
-
-            \fill[blue!20] (1,3) rectangle (2,4);
-            \fill[blue!30] (1,4) rectangle (2,5);
-            \fill[blue!50] (1,5) rectangle (2,6);
-            \fill[blue!70] (1,6) rectangle (2,7);
-            \node at (1.5,6.5) {\small \textbf{A}};
-            % Start arrow
-            \draw[->, thick, blue!70] (-0.5,3.5) -- (0.9,3.5);
-            \node[left] at (-0.5,3.5) {\small Start};
-        \end{tikzpicture}
-    \end{center}
-    \vspace{0.2cm}
-    \begin{center}
-        $Q((1,6), \text{?}) = ?$
-    \end{center}
-\end{frame}
-
-%-----------------------------------------------
-% Slide: Path Up - Dead End
-%-----------------------------------------------
-\begin{frame}{Bellman Equation: Path Up (Dead End)}
-    \begin{center}
-        \begin{tikzpicture}[scale=0.8]
-            \draw[step=1, gray, thin] (0,0) grid (6,7);
-
-            % Agent at (1,6)-(2,7), surrounded by walls - trapped!
-            % Adjacent walls (full opacity)
-            \fill[black!70] (2,5) rectangle (3,6);
-            \fill[black!70] (2,6) rectangle (3,7);  % wall blocking right
-            \fill[black!70] (0,5) rectangle (1,6);
-            \fill[black!70] (0,6) rectangle (1,7);
-
-            % Foggy walls - note: (0,3)-(1,4) is entrance, not wall
-            \fill[black!25] (2,3) rectangle (6,4);
-            \fill[black!25] (0,0) rectangle (1,3);
-            \fill[black!25] (0,4) rectangle (1,5);
-            \fill[black!25] (4,6) rectangle (6,7);
-            \fill[black!25] (2,4) rectangle (3,5);
-            \fill[black!25] (4,4) rectangle (5,6);
-            \fill[black!25] (3,4) rectangle (4,6);  % extended inner wall
-
-            % Fill blocks around the path (all foggy - not adjacent)
-            \fill[black!25] (1,0) rectangle (6,1);  % row below path
-            \fill[black!25] (2,2) rectangle (6,3);  % row above path
-
-            % Goal (foggy)
-            \fill[green!20] (5,1) rectangle (6,2);
-            \node[opacity=0.4] at (5.5,1.5) {\small \textbf{G}};
-
-            \fill[blue!20] (1,3) rectangle (2,4);
-            \fill[blue!30] (1,4) rectangle (2,5);
-            \fill[blue!50] (1,5) rectangle (2,6);
-            \fill[red!70] (1,6) rectangle (2,7);
-            \node at (1.5,6.5) {\small \textbf{A}};
-            % Start arrow
-            \draw[->, thick, blue!70] (-0.5,3.5) -- (0.9,3.5);
-            \node[left] at (-0.5,3.5) {\small Start};
-        \end{tikzpicture}
-    \end{center}
-
-    \vspace{0.3cm}
-    \begin{center}
-        {\color{red} Agent gets trapped!}
-    \end{center}
-\end{frame}
-
-%-----------------------------------------------
-% Slide: Path Down - Step 1
-%-----------------------------------------------
-\begin{frame}{Bellman Equation: Path Down (Step 1)}
-    \begin{center}
-        \begin{tikzpicture}[scale=0.8]
-            \draw[step=1, gray, thin] (0,0) grid (6,7);
-
-            % Agent at (1,3)-(2,4), surrounding tiles: x:0-3, y:2-5
-            % Adjacent walls (full opacity)
-            \fill[black!70] (2,3) rectangle (3,4);
-            \fill[black!70] (2,4) rectangle (3,5);
-            \fill[black!70] (0,2) rectangle (1,3);
-            \fill[black!70] (0,4) rectangle (1,5);
-
-            % Foggy walls - note: (0,3)-(1,4) is entrance, not wall
-            \fill[black!25] (3,3) rectangle (6,4);
-            \fill[black!25] (0,0) rectangle (1,2);
-            \fill[black!25] (0,5) rectangle (1,7);
-            \fill[black!25] (4,6) rectangle (6,7);
-            \fill[black!25] (4,4) rectangle (5,6);
-            \fill[black!25] (2,5) rectangle (3,7);  % extended wall
-            \fill[black!25] (3,4) rectangle (4,6);  % extended inner wall
-
-            % Fill blocks around the path
-            \fill[black!25] (1,0) rectangle (6,1);  % row below path (foggy)
-            \fill[black!70] (2,2) rectangle (3,3);  % adjacent to agent
-            \fill[black!25] (3,2) rectangle (6,3);  % row above path (foggy)
-
-            % Goal (foggy)
-            \fill[green!20] (5,1) rectangle (6,2);
-            \node[opacity=0.4] at (5.5,1.5) {\small \textbf{G}};
-
-            \fill[blue!70] (1,3) rectangle (2,4);
-            \node at (1.5,3.5) {\small \textbf{A}};
-            % Start arrow
-            \draw[->, thick, blue!70] (-0.5,3.5) -- (0.9,3.5);
-            \node[left] at (-0.5,3.5) {\small Start};
-        \end{tikzpicture}
-    \end{center}
-    \vspace{0.2cm}
-    \begin{center}
-        $Q((1,3), \text{down}) = ?$
-    \end{center}
-\end{frame}
-
-%-----------------------------------------------
-% Slide: Path Down - Step 2
-%-----------------------------------------------
-\begin{frame}{Bellman Equation: Path Down (Step 2)}
-    \begin{center}
-        \begin{tikzpicture}[scale=0.8]
-            \draw[step=1, gray, thin] (0,0) grid (6,7);
-
-            % Agent at (1,2)-(2,3), surrounding tiles: x:0-3, y:1-4
-            % Adjacent walls (full opacity)
-            \fill[black!70] (2,3) rectangle (3,4);
-            \fill[black!70] (0,1) rectangle (1,2);
-            \fill[black!70] (0,2) rectangle (1,3);
-
-            % Foggy walls - note: (0,3)-(1,4) is entrance, not wall
-            \fill[black!25] (3,3) rectangle (6,4);
-            \fill[black!25] (0,0) rectangle (1,1);
-            \fill[black!25] (0,4) rectangle (1,7);
-            \fill[black!25] (4,6) rectangle (6,7);
-            \fill[black!25] (4,4) rectangle (5,6);
-            \fill[black!25] (2,4) rectangle (3,7);  % extended wall
-            \fill[black!25] (3,4) rectangle (4,6);  % extended inner wall
-
-            % Fill blocks around the path
-            \fill[black!70] (1,0) rectangle (2,1);  % adjacent to agent (below-left diagonal not quite, but 1,1 is adjacent)
-            \fill[black!25] (2,0) rectangle (6,1);  % row below path (foggy)
-            \fill[black!70] (2,2) rectangle (3,3);  % adjacent to agent
-            \fill[black!25] (3,2) rectangle (6,3);  % row above path (foggy)
-
-            % Goal (foggy)
-            \fill[green!20] (5,1) rectangle (6,2);
-            \node[opacity=0.4] at (5.5,1.5) {\small \textbf{G}};
-
-            \fill[blue!50] (1,3) rectangle (2,4);
-            \fill[blue!70] (1,2) rectangle (2,3);
-            \node at (1.5,2.5) {\small \textbf{A}};
-            % Start arrow
-            \draw[->, thick, blue!70] (-0.5,3.5) -- (0.9,3.5);
-            \node[left] at (-0.5,3.5) {\small Start};
-        \end{tikzpicture}
-    \end{center}
-    \vspace{0.2cm}
-    \begin{center}
-        $Q((1,2), \text{down}) = ?$
-    \end{center}
-\end{frame}
-
-%-----------------------------------------------
-% Slide: Path Down - Step 3
-%-----------------------------------------------
-\begin{frame}{Bellman Equation: Path Down (Step 3)}
-    \begin{center}
-        \begin{tikzpicture}[scale=0.8]
-            \draw[step=1, gray, thin] (0,0) grid (6,7);
-
-            % Agent at (1,1)-(2,2), surrounding tiles: x:0-3, y:0-3
-            % Adjacent walls (full opacity)
-            \fill[black!70] (0,0) rectangle (1,1);
-            \fill[black!70] (0,1) rectangle (1,2);
-            \fill[black!70] (0,2) rectangle (1,3);
-
-            % Foggy walls - note: (0,3)-(1,4) is entrance, not wall
-            \fill[black!25] (2,3) rectangle (6,4);
-            \fill[black!25] (0,4) rectangle (1,7);
-            \fill[black!25] (4,6) rectangle (6,7);
-            \fill[black!25] (4,4) rectangle (5,6);
-            \fill[black!25] (2,4) rectangle (3,7);  % extended wall
-            \fill[black!25] (3,4) rectangle (4,6);  % extended inner wall
-
-            % Fill blocks around the path
-            \fill[black!70] (1,0) rectangle (2,1);  % adjacent to agent
-            \fill[black!70] (2,0) rectangle (3,1);  % adjacent to agent
-            \fill[black!25] (3,0) rectangle (6,1);  % row below path (foggy)
-            \fill[black!70] (2,2) rectangle (3,3);  % adjacent to agent
-            \fill[black!25] (3,2) rectangle (6,3);  % row above path (foggy)
-
-            % Goal (foggy)
-            \fill[green!20] (5,1) rectangle (6,2);
-            \node[opacity=0.4] at (5.5,1.5) {\small \textbf{G}};
-
-            \fill[blue!30] (1,3) rectangle (2,4);
-            \fill[blue!50] (1,2) rectangle (2,3);
-            \fill[blue!70] (1,1) rectangle (2,2);
-            \node at (1.5,1.5) {\small \textbf{A}};
-            % Start arrow
-            \draw[->, thick, blue!70] (-0.5,3.5) -- (0.9,3.5);
-            \node[left] at (-0.5,3.5) {\small Start};
-        \end{tikzpicture}
-    \end{center}
-    \vspace{0.2cm}
-    \begin{center}
-        $Q((1,1), \text{right}) = ?$
-    \end{center}
-\end{frame}
-
-%-----------------------------------------------
-% Slide: Path Down - Step 4
-%-----------------------------------------------
-\begin{frame}{Bellman Equation: Path Down (Step 4)}
-    \begin{center}
-        \begin{tikzpicture}[scale=0.8]
-            \draw[step=1, gray, thin] (0,0) grid (6,7);
-
-            % Agent at (2,1)-(3,2), surrounding tiles: x:1-4, y:0-3
-            % Adjacent walls (full opacity) - none in this area
-
-            % Foggy walls - note: (0,3)-(1,4) is entrance, not wall
-            \fill[black!25] (2,3) rectangle (6,4);
-            \fill[black!25] (0,0) rectangle (1,3);
-            \fill[black!25] (0,4) rectangle (1,7);
-            \fill[black!25] (4,6) rectangle (6,7);
-            \fill[black!25] (4,4) rectangle (5,6);
-            \fill[black!25] (2,4) rectangle (3,7);  % extended wall
-            \fill[black!25] (3,4) rectangle (4,6);  % extended inner wall
-
-            % Fill blocks around the path
-            \fill[black!70] (1,0) rectangle (2,1);  % adjacent to agent
-            \fill[black!70] (2,0) rectangle (3,1);  % adjacent to agent
-            \fill[black!70] (3,0) rectangle (4,1);  % adjacent to agent
-            \fill[black!25] (4,0) rectangle (6,1);  % row below path (foggy)
-            \fill[black!70] (2,2) rectangle (3,3);  % adjacent to agent
-            \fill[black!70] (3,2) rectangle (4,3);  % adjacent to agent
-            \fill[black!25] (4,2) rectangle (6,3);  % row above path (foggy)
-
-            % Goal (foggy)
-            \fill[green!20] (5,1) rectangle (6,2);
-            \node[opacity=0.4] at (5.5,1.5) {\small \textbf{G}};
-
-            \fill[blue!20] (1,3) rectangle (2,4);
-            \fill[blue!30] (1,2) rectangle (2,3);
-            \fill[blue!50] (1,1) rectangle (2,2);
-            \fill[blue!70] (2,1) rectangle (3,2);
-            \node at (2.5,1.5) {\small \textbf{A}};
-            % Start arrow
-            \draw[->, thick, blue!70] (-0.5,3.5) -- (0.9,3.5);
-            \node[left] at (-0.5,3.5) {\small Start};
-        \end{tikzpicture}
-    \end{center}
-    \vspace{0.2cm}
-    \begin{center}
-        $Q((2,1), \text{right}) = ?$
-    \end{center}
-\end{frame}
-
-%-----------------------------------------------
-% Slide: Path Down - Step 5
-%-----------------------------------------------
-\begin{frame}{Bellman Equation: Path Down (Step 5)}
-    \begin{center}
-        \begin{tikzpicture}[scale=0.8]
-            \draw[step=1, gray, thin] (0,0) grid (6,7);
-
-            % Agent at (3,1)-(4,2), surrounding tiles: x:2-5, y:0-3
-            % Adjacent walls (full opacity) - none in this area
-
-            % Foggy walls - note: (0,3)-(1,4) is entrance, not wall
-            \fill[black!25] (2,3) rectangle (6,4);
-            \fill[black!25] (0,0) rectangle (1,3);
-            \fill[black!25] (0,4) rectangle (1,7);
-            \fill[black!25] (4,6) rectangle (6,7);
-            \fill[black!25] (4,4) rectangle (5,6);
-            \fill[black!25] (2,4) rectangle (3,7);  % extended wall
-            \fill[black!25] (3,4) rectangle (4,6);  % extended inner wall
-
-            % Fill blocks around the path
-            \fill[black!25] (1,0) rectangle (2,1);  % row below path (foggy)
-            \fill[black!70] (2,0) rectangle (3,1);  % adjacent to agent
-            \fill[black!70] (3,0) rectangle (4,1);  % adjacent to agent
-            \fill[black!70] (4,0) rectangle (5,1);  % adjacent to agent
-            \fill[black!25] (5,0) rectangle (6,1);  % row below path (foggy)
-            \fill[black!70] (2,2) rectangle (3,3);  % adjacent to agent
-            \fill[black!70] (3,2) rectangle (4,3);  % adjacent to agent
-            \fill[black!70] (4,2) rectangle (5,3);  % adjacent to agent
-            \fill[black!25] (5,2) rectangle (6,3);  % row above path (foggy)
-
-            % Goal (foggy)
-            \fill[green!20] (5,1) rectangle (6,2);
-            \node[opacity=0.4] at (5.5,1.5) {\small \textbf{G}};
-
-            \fill[blue!15] (1,3) rectangle (2,4);
-            \fill[blue!20] (1,2) rectangle (2,3);
-            \fill[blue!30] (1,1) rectangle (2,2);
-            \fill[blue!50] (2,1) rectangle (3,2);
-            \fill[blue!70] (3,1) rectangle (4,2);
-            \node at (3.5,1.5) {\small \textbf{A}};
-            % Start arrow
-            \draw[->, thick, blue!70] (-0.5,3.5) -- (0.9,3.5);
-            \node[left] at (-0.5,3.5) {\small Start};
-        \end{tikzpicture}
-    \end{center}
-    \vspace{0.2cm}
-    \begin{center}
-        $Q((3,1), \text{right}) = ?$
-    \end{center}
-\end{frame}
-
-%-----------------------------------------------
-% Slide: Path Down - Step 6
-%-----------------------------------------------
-\begin{frame}{Bellman Equation: Path Down (Step 6)}
-    \begin{center}
-        \begin{tikzpicture}[scale=0.8]
-            \draw[step=1, gray, thin] (0,0) grid (6,7);
-
-            % Agent at (4,1)-(5,2), surrounding tiles: x:3-6, y:0-3
-            % Adjacent walls (full opacity) - none in this area
-
-            % Foggy walls - note: (0,3)-(1,4) is entrance, not wall
-            \fill[black!25] (2,3) rectangle (6,4);
-            \fill[black!25] (0,0) rectangle (1,3);
-            \fill[black!25] (0,4) rectangle (1,7);
-            \fill[black!25] (4,6) rectangle (6,7);
-            \fill[black!25] (4,4) rectangle (5,6);
-            \fill[black!25] (2,4) rectangle (3,7);  % extended wall
-            \fill[black!25] (3,4) rectangle (4,6);  % extended inner wall
-
-            % Fill blocks around the path
-            \fill[black!25] (1,0) rectangle (3,1);  % row below path (foggy)
-            \fill[black!70] (3,0) rectangle (4,1);  % adjacent to agent
-            \fill[black!70] (4,0) rectangle (5,1);  % adjacent to agent
-            \fill[black!70] (5,0) rectangle (6,1);  % adjacent to agent
-            \fill[black!25] (2,2) rectangle (3,3);  % row above path (foggy)
-            \fill[black!70] (3,2) rectangle (4,3);  % adjacent to agent
-            \fill[black!70] (4,2) rectangle (5,3);  % adjacent to agent
-            \fill[black!70] (5,2) rectangle (6,3);  % adjacent to agent
-
-            % Goal (visible - adjacent to agent!)
-            \fill[green!50] (5,1) rectangle (6,2);
-            \node at (5.5,1.5) {\small \textbf{G}};
-
-            \fill[blue!10] (1,3) rectangle (2,4);
-            \fill[blue!15] (1,2) rectangle (2,3);
-            \fill[blue!20] (1,1) rectangle (2,2);
-            \fill[blue!30] (2,1) rectangle (3,2);
-            \fill[blue!50] (3,1) rectangle (4,2);
-            \fill[blue!70] (4,1) rectangle (5,2);
-            \node at (4.5,1.5) {\small \textbf{A}};
-            % Start arrow
-            \draw[->, thick, blue!70] (-0.5,3.5) -- (0.9,3.5);
-            \node[left] at (-0.5,3.5) {\small Start};
-        \end{tikzpicture}
-    \end{center}
-    \vspace{0.2cm}
-    \begin{center}
-        $Q((4,1), \text{right}) = ?$
-    \end{center}
-\end{frame}
-
-%-----------------------------------------------
-% Slide: Path Down - Step 7 (Goal!)
-%-----------------------------------------------
-\begin{frame}{Bellman Equation: Path Down (Goal!)}
-    \begin{center}
-        \begin{tikzpicture}[scale=0.8]
-            \draw[step=1, gray, thin] (0,0) grid (6,7);
-
-            % Agent at goal (5,1)-(6,2), surrounding tiles: x:4-6, y:0-3
-            % Adjacent walls (full opacity) - none in this area
-
-            % Foggy walls - note: (0,3)-(1,4) is entrance, not wall
-            \fill[black!25] (2,3) rectangle (6,4);
-            \fill[black!25] (0,0) rectangle (1,3);
-            \fill[black!25] (0,4) rectangle (1,7);
-            \fill[black!25] (4,6) rectangle (6,7);
-            \fill[black!25] (4,4) rectangle (5,6);
-            \fill[black!25] (2,4) rectangle (3,7);  % extended wall
-            \fill[black!25] (3,4) rectangle (4,6);  % extended inner wall
-
-            % Fill remaining empty blocks around the path
-            \fill[black!25] (1,0) rectangle (4,1);  % row below path (foggy)
-            \fill[black!70] (4,0) rectangle (5,1);  % adjacent to agent
-            \fill[black!70] (5,0) rectangle (6,1);  % adjacent to agent
-            \fill[black!25] (2,2) rectangle (4,3);  % row above path (foggy)
-            \fill[black!70] (4,2) rectangle (5,3);  % adjacent to agent
-            \fill[black!70] (5,2) rectangle (6,3);  % adjacent to agent
-
-            \fill[blue!10] (1,3) rectangle (2,4);
-            \fill[blue!15] (1,2) rectangle (2,3);
-            \fill[blue!20] (1,1) rectangle (2,2);
-            \fill[blue!25] (2,1) rectangle (3,2);
-            \fill[blue!30] (3,1) rectangle (4,2);
-            \fill[blue!50] (4,1) rectangle (5,2);
-            \fill[green!70] (5,1) rectangle (6,2);
-            \node at (5.5,1.5) {\small \textbf{A}};
-            % Start arrow
-            \draw[->, thick, blue!70] (-0.5,3.5) -- (0.9,3.5);
-            \node[left] at (-0.5,3.5) {\small Start};
-        \end{tikzpicture}
-    \end{center}
-
-    \vspace{0.3cm}
-    \begin{center}
-        {\color{green!50!black} Agent reaches the goal!}
-    \end{center}
-\end{frame}
-
-%-----------------------------------------------
-% SLIDE: Bellman Q-Value Calculations
-%-----------------------------------------------
-\begin{frame}{Bellman Equation: Q-Value Calculations}
-    \begin{columns}[T]
-        \begin{column}{0.48\textwidth}
-            \centering
-            {\color{red}\textbf{Path Up (Dead End)}}
-            \vspace{0.2cm}
-
-            \scriptsize
-            \begin{tabular}{|c|c|c|c|}
-                \hline
-                \textbf{State} & \textbf{Action} & \textbf{R} & \textbf{Q(s,a)} \\
-                \hline
-                (1,3) & up & -0.01 & -0.01 \\
-                (1,4) & up & -0.01 & -0.02 \\
-                (1,5) & up & -0.01 & -0.03 \\
-                (1,6) & right & -0.01 & -0.04 \\
-                (2,6) & right & -0.01 & -0.05 \\
-                (3,6) & down & -0.01 & -0.06 \\
-                (3,5) & -- & -10 & \textbf{-10.06} \\
-                \hline
-            \end{tabular}
-
-            \vspace{0.3cm}
-            $Q(\text{Start}, \text{up}) = -10.06$
-        \end{column}
-
-        \begin{column}{0.48\textwidth}
-            \centering
-            {\color{green!50!black}\textbf{Path Down (Goal)}}
-            \vspace{0.2cm}
-
-            \scriptsize
-            \begin{tabular}{|c|c|c|c|}
-                \hline
-                \textbf{State} & \textbf{Action} & \textbf{R} & \textbf{Q(s,a)} \\
-                \hline
-                (1,3) & down & -0.01 & -0.01 \\
-                (1,2) & down & -0.01 & -0.02 \\
-                (1,1) & right & -0.01 & -0.03 \\
-                (2,1) & right & -0.01 & -0.04 \\
-                (3,1) & right & -0.01 & -0.05 \\
-                (4,1) & right & -0.01 & -0.06 \\
-                (5,1) & -- & +10 & \textbf{+9.94} \\
-                \hline
-            \end{tabular}
-
-            \vspace{0.3cm}
-            $Q(\text{Start}, \text{down}) = +9.94$
-        \end{column}
-    \end{columns}
+\begin{frame}{Deep Q-Networks (DQN)}
+    \textbf{Solution:} Use neural network to approximate Q(s,a)
 
     \vspace{0.5cm}
     \begin{center}
-        \fbox{Agent learns: \textbf{down} is better because $Q(\text{down}) > Q(\text{up})$}
-    \end{center}
-\end{frame}
+        \begin{tikzpicture}[scale=1.0]
+            % Input
+            \node[draw, rectangle, fill=blue!20, minimum width=2cm, minimum height=1cm] (input) at (0,0) {State};
+            % Network
+            \node[draw, rectangle, fill=orange!30, minimum width=2.5cm, minimum height=2cm, align=center] (nn) at (4,0) {Neural\\Network};
+            % Outputs (3 actions: straight, left, right)
+            \node[draw, rectangle, fill=green!20, minimum width=1.8cm] (q1) at (8,1) {Q(Straight)};
+            \node[draw, rectangle, fill=green!20, minimum width=1.8cm] (q2) at (8,0) {Q(Left)};
+            \node[draw, rectangle, fill=green!20, minimum width=1.8cm] (q3) at (8,-1) {Q(Right)};
+            % Policy
+            \node[draw, rectangle, fill=purple!20, minimum width=2cm, minimum height=1cm] (policy) at (11,0) {$\pi(a|s)$};
 
-%-----------------------------------------------
-% SECTION: PRESENTER B - Algorithms & Implementation
-%-----------------------------------------------
-
-%-----------------------------------------------
-% SLIDE: Problems with Raw Rewards
-%-----------------------------------------------
-\begin{frame}{Problems with the Current Reward System}
-    \begin{center}
-        \textit{Why not just use raw rewards?}
-    \end{center}
-\end{frame}
-
-%-----------------------------------------------
-% SLIDE: Raw Rewards Example
-%-----------------------------------------------
-\begin{frame}{Problems with the Current Reward System}
-    \begin{columns}[T]
-        \begin{column}{0.48\textwidth}
-            \centering
-            \textbf{Scenario A}
-
-            \vspace{0.3cm}
-            \begin{tabular}{|c|c|}
-                \hline
-                Action & Reward \\
-                \hline
-                Left & -5 \\
-                Forward & 0 \\
-                Right & +5 \\
-                \hline
-            \end{tabular}
-
-            \vspace{0.3cm}
-            Best: \textbf{Right} (+5)
-        \end{column}
-
-        \begin{column}{0.48\textwidth}
-            \centering
-            \textbf{Scenario B}
-
-            \vspace{0.3cm}
-            \begin{tabular}{|c|c|}
-                \hline
-                Action & Reward \\
-                \hline
-                Left & +95 \\
-                Forward & +100 \\
-                Right & +105 \\
-                \hline
-            \end{tabular}
-
-            \vspace{0.3cm}
-            Best: \textbf{Right} (+105)
-        \end{column}
-    \end{columns}
-
-    \vspace{0.5cm}
-    \begin{center}
-        Same decision, but raw values are very different!
-    \end{center}
-\end{frame}
-
-%-----------------------------------------------
-% SLIDE: Credit Assignment Problem - Question
-%-----------------------------------------------
-\begin{frame}{The Credit Assignment Problem}
-    \begin{center}
-        \textit{Which action should the agent take?}
-    \end{center}
-
-    \vspace{0.5cm}
-    \begin{center}
-        \begin{tikzpicture}[scale=0.7]
-            % Grid
-            \draw[step=1, gray, thin] (0,0) grid (6,7);
-            % Walls - same maze shape as Bellman diagrams
-            \fill[black!70] (2,3) rectangle (6,4);
-            \fill[black!70] (0,0) rectangle (1,3);
-            \fill[black!70] (0,4) rectangle (1,7);
-            \fill[black!70] (4,6) rectangle (6,7);
-            \fill[black!70] (4,4) rectangle (5,6);
-            \fill[black!70] (2,4) rectangle (3,7);  % extended wall blocking upper path
-            \fill[black!70] (3,4) rectangle (4,6);  % extended inner wall
-            % Fill blocks around the path
-            \fill[black!70] (1,0) rectangle (6,1);  % row below path
-            \fill[black!70] (2,2) rectangle (6,3);  % row above path
-            % Goal
-            \fill[green!50] (5,1) rectangle (6,2);
-            \node at (5.5,1.5) {\small \textbf{G}};
-            % Agent
-            \fill[blue!70] (1,3) rectangle (2,4);
-            \node at (1.5,3.5) {\small \textbf{A}};
-            % Arrows with initial rewards
-            \draw[->, red, ultra thick] (1.5,4) -- (1.5,5.5);
-            \node[right, red] at (1.7,4.8) {\scriptsize Up: shorter?};
-            \draw[->, green!50!black, ultra thick] (1.5,3) -- (1.5,1.5);
-            \node[right, green!50!black] at (1.7,2.2) {\scriptsize Down: longer?};
+            % Arrows
+            \draw[->, thick] (input) -- (nn);
+            \draw[->, thick] (nn) -- (q1);
+            \draw[->, thick] (nn) -- (q2);
+            \draw[->, thick] (nn) -- (q3);
+            \draw[->, thick] (q1.east) -- (policy.north west);
+            \draw[->, thick] (q2.east) -- (policy.west);
+            \draw[->, thick] (q3.east) -- (policy.south west);
         \end{tikzpicture}
     \end{center}
 \end{frame}
 
 %-----------------------------------------------
-% SLIDE: Credit Assignment Problem - Explanation
-%-----------------------------------------------
-\begin{frame}{The Credit Assignment Problem}
-    \begin{columns}[T]
-        \begin{column}{0.55\textwidth}
-            \begin{center}
-                \begin{tikzpicture}[scale=0.55]
-                    % Grid
-                    \draw[step=1, gray, thin] (0,0) grid (6,7);
-                    % Walls - same maze shape as Bellman diagrams
-                    \fill[black!70] (2,3) rectangle (6,4);
-                    \fill[black!70] (0,0) rectangle (1,3);
-                    \fill[black!70] (0,4) rectangle (1,7);
-                    \fill[black!70] (4,6) rectangle (6,7);
-                    \fill[black!70] (4,4) rectangle (5,6);
-                    \fill[black!70] (2,4) rectangle (3,7);  % extended wall blocking upper path
-                    \fill[black!70] (3,4) rectangle (4,6);  % extended inner wall
-                    % Fill blocks around the path
-                    \fill[black!70] (1,0) rectangle (6,1);  % row below path
-                    \fill[black!70] (2,2) rectangle (6,3);  % row above path
-                    % Goal
-                    \fill[green!50] (5,1) rectangle (6,2);
-                    \node at (5.5,1.5) {\small \textbf{G}};
-                    % Agent
-                    \fill[blue!70] (1,3) rectangle (2,4);
-                    \node at (1.5,3.5) {\small \textbf{A}};
-                    % Arrows with initial rewards
-                    \draw[->, red, ultra thick] (1.5,4) -- (1.5,5.5);
-                    \node[right, red] at (1.7,4.8) {\scriptsize Up: shorter?};
-                    \draw[->, green!50!black, ultra thick] (1.5,3) -- (1.5,1.5);
-                    \node[right, green!50!black] at (1.7,2.2) {\scriptsize Down: longer?};
-                \end{tikzpicture}
-            \end{center}
-        \end{column}
-
-        \begin{column}{0.42\textwidth}
-            \textbf{Initial estimate:}
-            \begin{itemize}
-                \item Up looks shorter
-                \item Down looks longer
-            \end{itemize}
-
-            \vspace{0.3cm}
-            \textbf{But reality:}
-            \begin{itemize}
-                \item Up $\rightarrow$ {\color{red}dead end!}
-                \item Down $\rightarrow$ {\color{green!50!black}reaches goal}
-            \end{itemize}
-
-            \vspace{0.3cm}
-            \textbf{Problem:}\\
-            How to assign credit to early actions based on later outcomes?
-        \end{column}
-    \end{columns}
-
-    \vspace{0.3cm}
-    \begin{center}
-        \fbox{TD Learning propagates rewards backwards to solve this}
-    \end{center}
-\end{frame}
-
-%-----------------------------------------------
-% SLIDE: Temporal Difference Learning
-%-----------------------------------------------
-\begin{frame}{Temporal Difference (TD) Learning}
-    \begin{columns}[T]
-        \begin{column}{0.48\textwidth}
-            \centering
-            \textbf{1. Q estimates (3 states)}
-            \begin{tikzpicture}[scale=0.5]
-                % Axes (same width as graph 3)
-                \draw[->] (0,0) -- (6.5,0) node[right] {\scriptsize State};
-                \draw[->] (0,0) -- (0,4) node[above] {\scriptsize $Q$};
-
-                % Q values as bars
-                \fill[blue!60] (0.5,0) rectangle (1.3,1.5);
-                \fill[blue!60] (2,0) rectangle (2.8,2.5);
-                \fill[blue!60] (3.5,0) rectangle (4.3,2);
-
-                % Values on bars
-                \node[above] at (0.9,1.5) {\scriptsize 1.5};
-                \node[above] at (2.4,2.5) {\scriptsize 2.5};
-                \node[above] at (3.9,2) {\scriptsize 2.0};
-
-                % Labels
-                \node[below] at (0.9,-0.1) {\scriptsize $s$};
-                \node[below] at (2.4,-0.1) {\scriptsize $s'$};
-                \node[below] at (3.9,-0.1) {\scriptsize $s''$};
-            \end{tikzpicture}
-
-            \vspace{0.5cm}
-            \textbf{3. New state $s'''$ arrives}
-            \begin{tikzpicture}[scale=0.5]
-                % Axes
-                \draw[->] (0,0) -- (6.5,0) node[right] {\scriptsize State};
-                \draw[->] (0,0) -- (0,4) node[above] {\scriptsize $Q$};
-
-                % Q values as bars
-                \fill[blue!60] (0.5,0) rectangle (1.3,1.5);
-                \fill[blue!60] (2,0) rectangle (2.8,2.5);
-                \fill[blue!60] (3.5,0) rectangle (4.3,2);
-                \fill[green!60] (5,0) rectangle (5.8,3);
-
-                % Values on bars
-                \node[above] at (0.9,1.5) {\scriptsize 1.5};
-                \node[above] at (2.4,2.5) {\scriptsize 2.5};
-                \node[above] at (3.9,2) {\scriptsize 2.0};
-                \node[above] at (5.4,3) {\scriptsize 3.0};
-
-                % Labels
-                \node[below] at (0.9,-0.1) {\scriptsize $s$};
-                \node[below] at (2.4,-0.1) {\scriptsize $s'$};
-                \node[below] at (3.9,-0.1) {\scriptsize $s''$};
-                \node[below, green!50!black] at (5.4,-0.1) {\scriptsize $s'''$};
-            \end{tikzpicture}
-        \end{column}
-
-        \begin{column}{0.48\textwidth}
-            \centering
-            \textbf{2. TD errors (normalized)}
-            \begin{tikzpicture}[scale=0.5]
-                % Axes (same height as Q graphs: -2 to 2 = 4 units)
-                \draw[->] (0,0) -- (6.5,0) node[right] {\scriptsize};
-                \draw[->] (0,-2) -- (0,2) node[above] {\scriptsize $\delta$};
-                \draw[gray, dashed] (0,0) -- (6,0);
-
-                % TD error bars (2.5-1.5=+1, 2.0-2.5=-0.5)
-                \fill[green!60] (0.5,0) rectangle (1.5,1);
-                \fill[red!60] (2.5,0) rectangle (3.5,-0.5);
-
-                % Labels
-                \node[below] at (1,-2.2) {\scriptsize $s{\to}s'$};
-                \node[below] at (3,-2.2) {\scriptsize $s'{\to}s''$};
-
-                % Values
-                \node[above] at (1,1) {\scriptsize +1};
-                \node[below] at (3,-0.5) {\scriptsize -0.5};
-            \end{tikzpicture}
-
-            \vspace{0.5cm}
-            \textbf{4. TD errors change!}
-            \begin{tikzpicture}[scale=0.5]
-                % Axes (same height as Q graphs: -2 to 2 = 4 units)
-                \draw[->] (0,0) -- (6.5,0) node[right] {\scriptsize};
-                \draw[->] (0,-2) -- (0,2) node[above] {\scriptsize $\delta$};
-                \draw[gray, dashed] (0,0) -- (6,0);
-
-                % TD error bars - all change due to propagation
-                \fill[orange!60] (0.5,0) rectangle (1.5,1.2);
-                \fill[orange!60] (2.5,0) rectangle (3.5,0.5);
-                \fill[green!60] (4.5,0) rectangle (5.5,1);
-
-                % Labels
-                \node[below, orange] at (1,-2.2) {\scriptsize $s{\to}s'$};
-                \node[below, orange] at (3,-2.2) {\scriptsize $s'{\to}s''$};
-                \node[below, green!50!black] at (5,-2.2) {\scriptsize $s''{\to}s'''$};
-
-                % Values (propagated changes)
-                \node[above, orange] at (1,1.2) {\scriptsize +1.2};
-                \node[above, orange] at (3,0.5) {\scriptsize +0.5};
-                \node[above] at (5,1) {\scriptsize +1};
-            \end{tikzpicture}
-        \end{column}
-    \end{columns}
-
-    \vspace{0.3cm}
-    \begin{center}
-        \fbox{TD uses \textbf{difference} $\delta = Q(s') - Q(s)$ as learning signal, not raw values}
-    \end{center}
-\end{frame}
-
-%-----------------------------------------------
-% SLIDE: Exploration vs. Exploitation
+% Slide: Exploration vs. Exploitation
 %-----------------------------------------------
 \begin{frame}{Exploration vs. Exploitation}
     \begin{center}
-        \textit{The agent found food going down. Should it always go down?}
+        \textit{The agent found food going right. Should it always go right?}
     \end{center}
 
     \vspace{0.5cm}
@@ -1376,7 +957,7 @@
                 % Grid
                 \draw[gray!30] (0,0) grid (5,5);
                 \draw[black, thick] (0,0) rectangle (5,5);
-                % Snake body (left to right)
+                % Snake body
                 \fill[green!50] (0,2) rectangle (1,3);
                 \fill[green!50] (1,2) rectangle (2,3);
                 % Snake head
@@ -1401,17 +982,16 @@
                 % Grid
                 \draw[gray!30] (0,0) grid (5,5);
                 \draw[black, thick] (0,0) rectangle (5,5);
-                % Snake body (left to right)
+                % Snake body
                 \fill[green!50] (0,2) rectangle (1,3);
                 \fill[green!50] (1,2) rectangle (2,3);
                 % Snake head
                 \fill[green!70!black] (2,2) rectangle (3,3);
-                % Goal to the right
-                \fill[green!30] (4,2) rectangle (5,3);
-                \node at (4.5,2.5) {\textbf{G}};
+                % Food to the right
+                \fill[red!60] (4,2) rectangle (5,3);
                 % Arrow right (best known action)
                 \draw[->, very thick, blue] (3.1,2.5) -- (3.8,2.5);
-                \node[below] at (2.5,-0.3) {\scriptsize Best action};
+                \node[below] at (2.5,-0.3) {\scriptsize Best known action};
             \end{tikzpicture}
 
             \vspace{0.3cm}
@@ -1426,41 +1006,31 @@
 \end{frame}
 
 %-----------------------------------------------
-% SLIDE: Epsilon-Greedy Strategy
+% Slide: Epsilon-Greedy Strategy
 %-----------------------------------------------
-\begin{frame}{$\epsilon$-Greedy Strategy \hfill {\color{red}\textbf{TODO}}}
+\begin{frame}{$\epsilon$-Greedy Strategy}
     \begin{columns}[T]
         \begin{column}{0.48\textwidth}
             \centering
             \textbf{High $\epsilon$ = 0.75} (Early training)
 
             \vspace{0.3cm}
-            $\pi(a|s)$:
             \begin{tikzpicture}[scale=0.8]
                 % Axes
-                \draw[->] (0,0) -- (4.5,0) node[right] {\scriptsize Action};
+                \draw[->] (0,0) -- (4,0) node[right] {\scriptsize Action};
                 \draw[->] (0,0) -- (0,2.5) node[above] {\scriptsize P};
-                % Y-axis labels
-                \node[left] at (0,0.5) {\tiny 0.19};
-                \node[left] at (0,1.1) {\tiny 0.44};
-                \draw[gray, dotted] (0,0.5) -- (4.2,0.5);
-                \draw[gray, dotted] (0,1.1) -- (4.2,1.1);
-                % Bars - 75% random (18.75% each) + 25% best
-                % best gets 25% + 75%/4 = 43.75%, others get 75%/4 = 18.75%
-                \fill[blue!60] (0.5,0) rectangle (1,0.5);
-                \fill[green!70] (1.5,0) rectangle (2,1.1);
-                \fill[blue!60] (2.5,0) rectangle (3,0.5);
-                \fill[blue!60] (3.5,0) rectangle (4,0.5);
+                % Bars
+                \fill[blue!60] (0.3,0) rectangle (0.9,0.5);
+                \fill[green!70] (1.3,0) rectangle (1.9,1.1);
+                \fill[blue!60] (2.3,0) rectangle (2.9,0.5);
                 % Labels
-                \node[below] at (0.75,-0.1) {\scriptsize Up};
-                \node[below] at (1.75,-0.1) {\scriptsize Down};
-                \node[below] at (2.75,-0.1) {\scriptsize Left};
-                \node[below] at (3.75,-0.1) {\scriptsize Right};
-                % Rewards above bars
-                \node[above] at (0.75,0.5) {\tiny Q=-10};
-                \node[above] at (1.75,1.1) {\tiny Q=+10};
-                \node[above] at (2.75,0.5) {\tiny Q=-1};
-                \node[above] at (3.75,0.5) {\tiny Q=-1};
+                \node[below] at (0.6,-0.1) {\scriptsize Str};
+                \node[below] at (1.6,-0.1) {\scriptsize L};
+                \node[below] at (2.6,-0.1) {\scriptsize R};
+                % Q-values above bars
+                \node[above] at (0.6,0.5) {\tiny Q=-1};
+                \node[above] at (1.6,1.1) {\tiny Q=+5};
+                \node[above] at (2.6,0.5) {\tiny Q=-1};
             \end{tikzpicture}
 
             \vspace{0.2cm}
@@ -1469,34 +1039,25 @@
 
         \begin{column}{0.48\textwidth}
             \centering
-            \textbf{Low $\epsilon$ = 0.25} (Late training)
+            \textbf{Low $\epsilon$ = 0.05} (Late training)
 
             \vspace{0.3cm}
-            $\pi(a|s)$:
             \begin{tikzpicture}[scale=0.8]
                 % Axes
-                \draw[->] (0,0) -- (4.5,0) node[right] {\scriptsize Action};
+                \draw[->] (0,0) -- (4,0) node[right] {\scriptsize Action};
                 \draw[->] (0,0) -- (0,2.5) node[above] {\scriptsize P};
-                % Y-axis labels
-                \node[left] at (0,0.15) {\tiny 0.06};
-                \node[left] at (0,2) {\tiny 0.81};
-                \draw[gray, dotted] (0,0.15) -- (4.2,0.15);
-                \draw[gray, dotted] (0,2) -- (4.2,2);
-                % Bars - best gets 75% + 25%/4 = 81.25%, others get 25%/4 = 6.25%
-                \fill[blue!30] (0.5,0) rectangle (1,0.15);
-                \fill[green!70] (1.5,0) rectangle (2,2);
-                \fill[blue!30] (2.5,0) rectangle (3,0.15);
-                \fill[blue!30] (3.5,0) rectangle (4,0.15);
+                % Bars
+                \fill[blue!30] (0.3,0) rectangle (0.9,0.15);
+                \fill[green!70] (1.3,0) rectangle (1.9,2);
+                \fill[blue!30] (2.3,0) rectangle (2.9,0.15);
                 % Labels
-                \node[below] at (0.75,-0.1) {\scriptsize Up};
-                \node[below] at (1.75,-0.1) {\scriptsize Down};
-                \node[below] at (2.75,-0.1) {\scriptsize Left};
-                \node[below] at (3.75,-0.1) {\scriptsize Right};
-                % Rewards above bars
-                \node[above] at (0.75,0.15) {\tiny Q=-10};
-                \node[above] at (1.75,2) {\tiny Q=+10};
-                \node[above] at (2.75,0.15) {\tiny Q=-1};
-                \node[above] at (3.75,0.15) {\tiny Q=-1};
+                \node[below] at (0.6,-0.1) {\scriptsize Str};
+                \node[below] at (1.6,-0.1) {\scriptsize L};
+                \node[below] at (2.6,-0.1) {\scriptsize R};
+                % Q-values above bars
+                \node[above] at (0.6,0.15) {\tiny Q=-1};
+                \node[above] at (1.6,2) {\tiny Q=+5};
+                \node[above] at (2.6,0.15) {\tiny Q=-1};
             \end{tikzpicture}
 
             \vspace{0.2cm}
@@ -1506,634 +1067,808 @@
 
     \vspace{0.5cm}
     \begin{center}
-        \fbox{$\epsilon$: choose randomly $\epsilon$\% of the time}
+        \fbox{$\epsilon$: choose randomly $\epsilon \times 100$\% of the time}
     \end{center}
 \end{frame}
 
 %-----------------------------------------------
-% SLIDE: Learning Q (Action-Value)
+% Slide: Network Architecture: MLP vs CNN
 %-----------------------------------------------
-\begin{frame}{Learning Q (Action-Value)}
-    \textbf{SARSA} (On-policy) -- {\small Uses the action $a'$ actually taken in $s'$}
-    \[
-    Q(s,a) \leftarrow Q(s,a) + \alpha \left[ r + \gamma Q(s', a') - Q(s,a) \right]
-    \]
-
-    \vspace{0.2cm}
-    \textbf{Expected SARSA} -- {\small Uses expected value over all actions in $s'$}
-    \[
-    Q(s,a) \leftarrow Q(s,a) + \alpha \left[ r + \gamma \sum_{a'} \pi(a'|s') Q(s', a') - Q(s,a) \right]
-    \]
-
-    \vspace{0.2cm}
-    \textbf{Q-Learning} (Off-policy) -- {\small Uses the best action in $s'$ (regardless of policy)}
-    \[
-    Q(s,a) \leftarrow Q(s,a) + \alpha \left[ r + \gamma \max_{a'} Q(s', a') - Q(s,a) \right]
-    \]
-\end{frame}
-
-%-----------------------------------------------
-% SLIDE: Learning V (State-Value)
-%-----------------------------------------------
-\begin{frame}{Learning V (State-Value)}
-    \textbf{TD(0)} -- One-step temporal difference
-    \[
-    V(s) \leftarrow V(s) + \alpha \left[ r + \gamma V(s') - V(s) \right]
-    \]
-
-    \vspace{0.5cm}
-    \textbf{TD($\lambda$)} -- Multi-step with eligibility traces
-    \[
-    V(s) \leftarrow V(s) + \alpha \delta_t e_t(s)
-    \]
-    {\small where $e_t(s)$ is the eligibility trace and $\lambda \in [0,1]$ controls the trace decay}
-
-    \vspace{0.5cm}
-    \textbf{Monte Carlo}
-    \[
-    V(s) \leftarrow V(s) + \alpha \left[ G_t - V(s) \right]
-    \]
-    {\small $G_t$ = total return from state $s$ (wait until episode ends)}
-\end{frame}
-
-%-----------------------------------------------
-% SLIDE: DQN Family
-%-----------------------------------------------
-\begin{frame}{Value-Based Methods: DQN Family}
-    \begin{itemize}
-        \item \textbf{DQN (Deep Q-Network)} -- Neural network approximates Q(s,a); experience replay; target network
-        \item \textbf{Double DQN} -- Reduces overestimation bias; separate networks for selection \& evaluation
-        \item \textbf{Dueling DQN} -- Separates value \& advantage: $Q(s,a) = V(s) + A(s,a)$
-        \item \textbf{Noisy DQN} -- Learned exploration; no $\epsilon$-greedy needed
-        \item \textbf{PER DQN} -- Prioritized experience replay; learn more from important transitions
-    \end{itemize}
-\end{frame}
-
-%-----------------------------------------------
-% SLIDE: Experience Replay
-%-----------------------------------------------
-\begin{frame}{Experience Replay}
-    \vspace{0.3cm}
+\begin{frame}{Network Architecture: MLP vs CNN}
     \begin{columns}[T]
         \begin{column}{0.48\textwidth}
             \centering
-            \textbf{Without Replay}
+            \textbf{MLP (Feature Vector)}
 
             \vspace{0.3cm}
-            \begin{tikzpicture}[scale=0.33]
-                % Invisible nodes to match height of right diagram
-                \node at (5.5,5.2) {\scriptsize \phantom{Memory Buffer (stores diverse experiences)}};
-                \path (0,-3) -- (0,-3); % match bottom of right diagram
+            \begin{tikzpicture}[scale=0.5]
+                % Input
+                \node[draw, rectangle, fill=blue!20, minimum width=1.5cm, minimum height=0.8cm] (input) at (0,0) {\small 10-dim};
+                % Hidden
+                \node[draw, rectangle, fill=orange!20, minimum width=1.2cm] (h1) at (0,-1.5) {\small FC};
+                \node[draw, rectangle, fill=orange!20, minimum width=1.2cm] (h2) at (0,-2.5) {\small FC};
+                % Output
+                \node[draw, rectangle, fill=green!20, minimum width=1.2cm] (out) at (0,-4) {\small Q(a)};
 
-                % Game 47: Snake hitting right wall
-                \draw[gray!50] (0,0) grid (4,4);
-                \draw[black, very thick] (0,0) rectangle (4,4);
-                \fill[red!60] (1,1) rectangle (2,2);  % food (ignored)
-                \fill[blue!70] (1,2) rectangle (2,3);  % body
-                \fill[blue!70] (2,2) rectangle (3,3);  % body
-                \fill[green!60!black] (3,2) rectangle (4,3);  % head at wall
-                \draw[->, very thick, white] (2.5,2.5) -- (3.4,2.5);  % direction arrow
-                \draw[red, very thick] (4,2) -- (4,3);  % collision indicator
-                \node at (2,-0.5) {\scriptsize Game 47};
-
-                % Arrow between games
-                \draw[->, thick, gray] (4.4,2) -- (5.1,2);
-
-                % Game 48: Snake hitting right wall again (similar)
-                \draw[gray!50] (5.5,0) grid (9.5,4);
-                \draw[black, very thick] (5.5,0) rectangle (9.5,4);
-                \fill[red!60] (6.5,3) rectangle (7.5,4);  % food (ignored)
-                \fill[blue!70] (6.5,1) rectangle (7.5,2);  % body
-                \fill[blue!70] (7.5,1) rectangle (8.5,2);  % body
-                \fill[green!60!black] (8.5,1) rectangle (9.5,2);  % head at wall
-                \draw[->, very thick, white] (8,1.5) -- (8.9,1.5);  % direction arrow
-                \draw[red, very thick] (9.5,1) -- (9.5,2);  % collision indicator
-                \node at (7.5,-0.5) {\scriptsize Game 48};
-
-                % Arrow to neural network
-                \draw[->, thick, red!70] (4.75,-1.2) -- (4.75,-2.5);
-                \node at (4.75,-3) {\scriptsize Train on recent};
+                \draw[->, thick] (input) -- (h1);
+                \draw[->, thick] (h1) -- (h2);
+                \draw[->, thick] (h2) -- (out);
             \end{tikzpicture}
 
-            \vspace{0.5cm}
-            \begin{minipage}[t][2.5cm][t]{\linewidth}
-                \centering
-                {\color{red} \textbf{Problem:}}\\[0.2cm]
-                Agent keeps dying to walls\\
-                $\rightarrow$ Only learns ``avoid walls''\\
-                $\rightarrow$ Forgets how to get food!
-            \end{minipage}
+            \vspace{0.3cm}
+            {\small Hand-crafted features}
+
+            {\footnotesize Fast training, interpretable}
         \end{column}
 
         \begin{column}{0.48\textwidth}
             \centering
-            \textbf{With Replay}
+            \textbf{CNN (Raw Grid)}
 
             \vspace{0.3cm}
-            \begin{tikzpicture}[scale=0.33]
-                % Memory buffer with mixed experiences
-                \draw[thick, fill=blue!10, rounded corners] (-0.5,-0.8) rectangle (13.5,4.7);
-                \node at (6.25,5.2) {\scriptsize Memory Buffer (stores diverse experiences)};
+            \begin{tikzpicture}[scale=0.5]
+                % Input grid
+                \node[draw, rectangle, fill=blue!20, minimum width=1.5cm, minimum height=0.8cm] (input) at (0,0) {\small 10x10x3};
+                % Conv layers
+                \node[draw, rectangle, fill=purple!20, minimum width=1.2cm] (c1) at (0,-1.5) {\small Conv};
+                \node[draw, rectangle, fill=purple!20, minimum width=1.2cm] (c2) at (0,-2.5) {\small Conv};
+                % Output
+                \node[draw, rectangle, fill=green!20, minimum width=1.2cm] (out) at (0,-4) {\small Q(a)};
 
-                % Experience 1: Snake eating food (positive reward)
-                \draw[gray!50] (0,0) grid (4,4);
-                \draw[black, thick] (0,0) rectangle (4,4);
-                \fill[blue!70] (0,2) rectangle (1,3);  % body
-                \fill[blue!70] (1,2) rectangle (2,3);  % body
-                \fill[green!60!black] (2,2) rectangle (3,3);  % head
-                \fill[red!60] (3,2) rectangle (4,3);  % food (about to eat)
-                \draw[->, very thick, white] (1.5,2.5) -- (2.4,2.5);  % direction arrow
-                \node[green!50!black] at (2,-0.5) {\scriptsize \textbf{+10} food};
-
-                % Experience 2: Snake avoiding wall (learned behavior)
-                \draw[gray!50] (4.5,0) grid (8.5,4);
-                \draw[black, thick] (4.5,0) rectangle (8.5,4);
-                \fill[blue!70] (5.5,1) rectangle (6.5,2);  % body
-                \fill[blue!70] (6.5,1) rectangle (7.5,2);  % body
-                \fill[green!60!black] (7.5,1) rectangle (8.5,2);  % head
-                \fill[red!60] (6.5,3) rectangle (7.5,4);  % food elsewhere
-                \draw[->, very thick, white] (7,1.5) -- (7.9,1.5);  % direction arrow
-                \draw[->, thick, green!60!black] (8,2.1) -- (8,2.9);  % turning up
-                \node[blue!70] at (6.5,-0.5) {\scriptsize safe move};
-
-                % Experience 3: Snake hitting wall (negative reward)
-                \draw[gray!50] (9,0) grid (13,4);
-                \draw[black, very thick] (9,0) rectangle (13,4);
-                \fill[red!60] (10,3) rectangle (11,4);  % food (missed)
-                \fill[blue!70] (10,0) rectangle (11,1);  % body
-                \fill[blue!70] (11,0) rectangle (12,1);  % body
-                \fill[green!60!black] (12,0) rectangle (13,1);  % head at wall
-                \draw[->, very thick, white] (11.5,0.5) -- (12.4,0.5);  % direction arrow
-                \draw[red, very thick] (13,0) -- (13,1);  % collision
-                \node[red!70!black] at (11,-0.5) {\scriptsize \textbf{-10} wall};
-                % Right margin
-                \path (14,0) -- (14,0);
-
-                % Random sampling arrows
-                \draw[->, thick, orange!80] (2,-1.2) -- (4.5,-2.5);
-                \draw[->, thick, orange!80] (6.5,-1.2) -- (6.25,-2.5);
-                \draw[->, thick, orange!80] (11,-1.2) -- (8,-2.5);
-                \node at (6.25,-3) {\scriptsize Random sample $\rightarrow$ Train};
+                \draw[->, thick] (input) -- (c1);
+                \draw[->, thick] (c1) -- (c2);
+                \draw[->, thick] (c2) -- (out);
             \end{tikzpicture}
 
-            \vspace{0.5cm}
-            \begin{minipage}[t][2.5cm][t]{\linewidth}
-                \centering
-                {\color{green!50!black} \textbf{Solution:}}\\[0.2cm]
-                Sample mixed memories\\
-                $\rightarrow$ Wall deaths + food grabs\\
-                $\rightarrow$ Learns everything together!
-            \end{minipage}
+            \vspace{0.3cm}
+            {\small Learns features automatically}
+
+            {\footnotesize Slower, more data needed}
         \end{column}
     \end{columns}
+
+    \vspace{0.5cm}
+    \begin{center}
+        \textit{Both output Q-values -- only the input representation differs}
+    \end{center}
 \end{frame}
 
 %-----------------------------------------------
-% SLIDE: Policy Gradient Methods
+% Slide: State Representation
 %-----------------------------------------------
-\begin{frame}{Policy Gradient Methods}
+\begin{frame}{What Does the Agent See?}
+    \textbf{The agent doesn't see the grid directly!}
+
+    \vspace{0.5cm}
+    We must convert the game state into a feature vector:
     \begin{itemize}
-        \item \textbf{REINFORCE}
-        \begin{itemize}
-            \item Direct policy optimization
-            \item Monte Carlo returns
-            \item {\color{red}High variance}
-        \end{itemize}
-        \item \textbf{A2C (Advantage Actor-Critic)}
-        \begin{itemize}
-            \item Actor (policy) + Critic (value)
-            \item Advantage function reduces variance
-        \end{itemize}
-        \item \textbf{PPO (Proximal Policy Optimization)}
-        \begin{itemize}
-            \item Clipped surrogate objective
-            \item Most stable policy gradient method
-        \end{itemize}
+        \item Input to the neural network
+        \item Must capture essential information
+        \item Affects learning speed and performance
     \end{itemize}
 
     \vspace{0.5cm}
     \begin{center}
-        \fbox{Policy gradient methods directly optimize the policy $\pi(a|s)$}
+        Game State $\rightarrow$ \fbox{Feature Extraction} $\rightarrow$ Neural Network
     \end{center}
 \end{frame}
 
 %-----------------------------------------------
-% SLIDE: World Models
+% Slide: Basic Features
 %-----------------------------------------------
-\begin{frame}{World Models}
-    \begin{center}
-        \textit{What if the agent could imagine the future?}
-    \end{center}
-
-    \vspace{0.5cm}
-    \begin{columns}[T]
-        \begin{column}{0.48\textwidth}
-            \textbf{Model-Free RL}
+\begin{frame}{Basic Features (10 dimensions)}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \textbf{Direction (3 values) (MP):}
             \begin{itemize}
-                \item Learn directly from experience
-                \item No internal simulation
-                \item Requires many real interactions
+                \item One-hot encoding
             \end{itemize}
 
             \vspace{0.3cm}
+            \textbf{Food Direction (4 values):}
+            \begin{itemize}
+                \item Relative to head
+                \item food\_left, food\_right
+                \item food\_up, food\_down
+            \end{itemize}
+
+            \vspace{0.3cm}
+            \textbf{Danger Sensors (3 values):}
+            \begin{itemize}
+                \item danger\_straight
+                \item danger\_left
+                \item danger\_right
+            \end{itemize}
+        \end{column}
+
+        \begin{column}{0.5\textwidth}
             \begin{center}
-                \begin{tikzpicture}[scale=0.6]
-                    \node[draw, circle, fill=blue!30, minimum size=1cm] (a) at (0,0) {Agent};
-                    \node[draw, rectangle, fill=green!30, minimum size=1cm] (e) at (4,0) {Env};
-                    \draw[->, thick] (a) -- node[above] {\scriptsize action} (e);
-                    \draw[->, thick] (e) to[bend right=40] node[above] {\scriptsize reward} (a);
+                \begin{tikzpicture}[scale=0.5]
+                    \draw[gray!30] (0,0) grid (6,6);
+                    \draw[black, thick] (0,0) rectangle (6,6);
+
+                    % Snake
+                    \fill[green!50] (2,3) rectangle (3,4);
+                    \fill[green!70!black] (3,3) rectangle (4,4);
+
+                    % Food
+                    \fill[red!60] (5,5) rectangle (6,6);
+
+                    % Danger sensors
+                    \draw[->, orange, very thick] (4,3.5) -- (5,3.5);
+                    \node[right, orange] at (5,3.5) {\tiny str};
+                    \draw[->, orange, very thick] (3.5,4) -- (3.5,5);
+                    \node[above, orange] at (3.5,5) {\tiny left};
+                    \draw[->, orange, very thick] (3.5,3) -- (3.5,2);
+                    \node[below, orange] at (3.5,2) {\tiny right};
+
+                    % Food direction
+                    \draw[->, blue, dashed, thick] (3.5,3.5) -- (5.5,5.5);
                 \end{tikzpicture}
             \end{center}
         \end{column}
-
-        \begin{column}{0.48\textwidth}
-            \textbf{Model-Based RL}
-            \begin{itemize}
-                \item Learn a model of the world
-                \item Simulate outcomes internally
-                \item More sample efficient
-            \end{itemize}
-
-            \vspace{0.3cm}
-            \begin{center}
-                \begin{tikzpicture}[scale=0.6]
-                    \node[draw, circle, fill=blue!30, minimum size=1cm] (a) at (0,0) {Agent};
-                    \node[draw, rectangle, fill=orange!30, minimum size=1cm] (m) at (4,0) {Model};
-                    \node[draw, rectangle, fill=green!30, dashed, minimum size=1cm] (e) at (4,-2.5) {Env};
-                    \draw[->, thick] (a) -- node[above] {\scriptsize imagine} (m);
-                    \draw[->, thick] (m) to[bend right=40] node[above] {\scriptsize predict} (a);
-                    \draw[->, thick, dashed] (a) to[bend right=40] (e);
-                \end{tikzpicture}
-            \end{center}
-        \end{column}
     \end{columns}
 \end{frame}
 
 %-----------------------------------------------
-% SLIDE: Sample Efficiency
+% Slide: Basic Agent Demo
 %-----------------------------------------------
-\begin{frame}{Sample Efficiency}
+\begin{frame}{Basic DQN Agent}
     \begin{center}
-        \textit{How many interactions does the agent need to learn?}
-    \end{center}
+        \includegraphics[width=0.7\textwidth]{figures/training/dqn_basic_20251129_231638.png}
 
-    \vspace{0.5cm}
-    \begin{columns}[T]
-        \begin{column}{0.55\textwidth}
-            \begin{center}
-                \begin{tikzpicture}[scale=0.7]
-                    % Axes
-                    \draw[->] (0,0) -- (7,0) node[right] {\scriptsize Samples};
-                    \draw[->] (0,0) -- (0,4) node[above] {\scriptsize Performance};
-
-                    % High sample efficiency (steep curve)
-                    \draw[thick, green!50!black] (0,0) .. controls (1,2.5) and (2,3.2) .. (6,3.5);
-                    \node[green!50!black] at (3,3.5) {\scriptsize High efficiency};
-
-                    % Low sample efficiency (gradual curve)
-                    \draw[thick, red] (0,0) .. controls (2,0.5) and (4,2) .. (6,3.3);
-                    \node[red] at (4.5,1.5) {\scriptsize Low efficiency};
-
-                    % Sample count markers
-                    \draw[gray, dashed] (1.5,0) -- (1.5,2.5);
-                    \node[below, gray] at (1.5,0) {\tiny 1K};
-                    \draw[gray, dashed] (4,0) -- (4,2.8);
-                    \node[below, gray] at (4,0) {\tiny 100K};
-                \end{tikzpicture}
-            \end{center}
-        \end{column}
-
-        \begin{column}{0.42\textwidth}
-            \textbf{Why it matters:}
-            \begin{itemize}
-                \item Real-world interactions are expensive
-                \item Time to train
-                \item Compute resources
-            \end{itemize}
-
-            \vspace{0.3cm}
-            \textbf{Improving efficiency:}
-            \begin{itemize}
-                \item Experience replay
-                \item Better exploration
-                \item Transfer learning
-            \end{itemize}
-        \end{column}
-    \end{columns}
-
-    \vspace{0.3cm}
-    \begin{center}
-        \fbox{Sample efficiency = performance gained per interaction}
-    \end{center}
-\end{frame}
-
-\section{Implementation}
-%-----------------------------------------------
-% Section: Implementation
-%-----------------------------------------------
-\begin{frame}
-    \begin{center}
-        \vfill
-        {\Huge \textbf{Implementation}} {\color{red}\textbf{TODO}}
-        \vfill
-    \end{center}
-\end{frame}
-
-\section{Conclusion}
-%-----------------------------------------------
-% Section: Conclusion
-%-----------------------------------------------
-\begin{frame}
-    \begin{center}
-        \vfill
-        {\Huge \textbf{Conclusion}}
-        \vfill
+        \vspace{0.3cm}
+        \textit{Trained with 10-dimensional feature vector}
     \end{center}
 \end{frame}
 
 %-----------------------------------------------
-% SLIDE: Applications
+% Slide: Without Experience Replay
 %-----------------------------------------------
-\begin{frame}{Applications \hfill {\color{red}\textbf{TODO}}}
-    \begin{columns}[T]
-        \begin{column}{0.48\textwidth}
-            \textbf{Games \& Simulation}
-            \begin{itemize}
-                \item AlphaGo, AlphaZero
-                \item OpenAI Five (Dota 2)
-                \item Atari games
-            \end{itemize}
-
-            \vspace{0.3cm}
-            \textbf{Robotics}
-            \begin{itemize}
-                \item Manipulation tasks
-                \item Locomotion
-                \item Autonomous navigation
-            \end{itemize}
-        \end{column}
-
-        \begin{column}{0.48\textwidth}
-            \textbf{Real-World Systems}
-            \begin{itemize}
-                \item Autonomous vehicles
-                \item Resource management
-                \item Data center cooling
-            \end{itemize}
-
-            \vspace{0.3cm}
-            \textbf{Other Domains}
-            \begin{itemize}
-                \item Recommendation systems
-                \item Financial trading
-                \item Healthcare optimization
-            \end{itemize}
-        \end{column}
-    \end{columns}
-\end{frame}
-
-%-----------------------------------------------
-% SLIDE: Limitations - Sample Inefficiency
-%-----------------------------------------------
-\begin{frame}{Limitations: Sample Inefficiency \hfill {\color{red}\textbf{TODO}}}
-    \begin{itemize}
-        \item \textbf{Humanoid locomotion}: 50--100 million frames to learn basic walking
-        \item \textbf{Atari games}: 200 million frames (equivalent to 38 days of gameplay)
-        \item \textbf{Real robots}: Hours/days of physical interaction
-    \end{itemize}
-
-    \vspace{0.5cm}
-    \begin{center}
-        \textit{``Deep RL is popular because it's the only area in ML where it's socially acceptable to train on the test set.''} -- Alex Irpan
-    \end{center}
-
-    \vspace{0.3cm}
-    \begin{center}
-        \fbox{Sample efficiency is the biggest bottleneck for real-world RL}
-    \end{center}
-\end{frame}
-
-%-----------------------------------------------
-% SLIDE: Limitations - Unreliability
-%-----------------------------------------------
-\begin{frame}{Limitations: Unreliability \hfill {\color{red}\textbf{TODO}}}
-    \begin{itemize}
-        \item \textbf{Sensitive to initial conditions}
-        \begin{itemize}
-            \item Same algorithm, same hyperparameters, different random seed
-            \item Results can vary dramatically between runs
-        \end{itemize}
-
-        \item \textbf{Hyperparameter sensitivity}
-        \begin{itemize}
-            \item Small changes can break training completely
-            \item Extensive tuning required for each new task
-        \end{itemize}
-
-        \item \textbf{Reproducibility challenges}
-        \begin{itemize}
-            \item Published results often hard to replicate
-            \item ``Works on my machine'' problem
-        \end{itemize}
-    \end{itemize}
-
-    \vspace{0.3cm}
-    \begin{center}
-        \fbox{RL algorithms often work sometimes, but not reliably}
-    \end{center}
-\end{frame}
-
-%-----------------------------------------------
-% SLIDE: Limitations (cont.)
-%-----------------------------------------------
-\begin{frame}{Limitations (cont.)}
-    \begin{itemize}
-        \item \textbf{Reward Engineering}
-        \begin{itemize}
-            \item Designing good reward functions is difficult
-            \item Reward hacking and unintended behaviors
-        \end{itemize}
-
-        \item \textbf{Sim-to-Real Gap}
-        \begin{itemize}
-            \item Policies trained in simulation may not transfer
-            \item Domain randomization helps but not perfect
-        \end{itemize}
-
-        \item \textbf{Safety \& Stability}
-        \begin{itemize}
-            \item Exploration can be dangerous
-            \item Training instability in deep RL
-        \end{itemize}
-    \end{itemize}
-\end{frame}
-
-%-----------------------------------------------
-% SLIDE: Future Methods - Bayesian RL
-%-----------------------------------------------
-\begin{frame}{Future Methods: Bayesian RL}
-    \begin{center}
-        \textit{What if the agent could reason about its own uncertainty?}
-    \end{center}
-
-    \vspace{0.5cm}
-    \begin{columns}[T]
-        \begin{column}{0.48\textwidth}
-            \textbf{Standard RL:}
-            \begin{itemize}
-                \item Point estimates of Q-values
-                \item Explore via $\epsilon$-greedy
-                \item No uncertainty quantification
-            \end{itemize}
-        \end{column}
-
-        \begin{column}{0.48\textwidth}
-            \textbf{Bayesian RL:}
-            \begin{itemize}
-                \item Probability distributions over Q
-                \item Explore where uncertain
-                \item Principled exploration
-            \end{itemize}
-        \end{column}
-    \end{columns}
-
-    \vspace{0.5cm}
+\begin{frame}{Training Without Replay}
     \begin{center}
         \begin{tikzpicture}[scale=0.6]
-            % Point estimate
-            \draw[->] (0,0) -- (3,0) node[right] {\scriptsize Q};
-            \draw[->] (0,0) -- (0,2);
-            \fill[blue] (1.5,0) circle (3pt);
-            \node[below] at (1.5,-0.3) {\scriptsize Point estimate};
-
-            % Distribution
-            \draw[->] (5,0) -- (8,0) node[right] {\scriptsize Q};
-            \draw[->] (5,0) -- (5,2);
-            \draw[thick, red, domain=5.2:7.8, samples=50] plot (\x, {1.5*exp(-2*(\x-6.5)^2)});
-            \node[below] at (6.5,-0.3) {\scriptsize Distribution};
+            % Sequential experiences
+            \node[draw, rectangle, fill=red!30] (e1) at (0,0) {Wall death};
+            \node[draw, rectangle, fill=red!30] (e2) at (0,-1.5) {Wall death};
+            \node[draw, rectangle, fill=red!30] (e3) at (0,-3) {Wall death};
+            \draw[->, thick] (e1) -- (e2);
+            \draw[->, thick] (e2) -- (e3);
         \end{tikzpicture}
-    \end{center}
 
-    \vspace{0.3cm}
-    \begin{center}
-        \fbox{Bayesian RL: maintain beliefs over value functions}
+        \vspace{0.5cm}
+        {\color{red} Only learns ``avoid walls''}\\
+        Forgets how to get food!
     \end{center}
 \end{frame}
 
 %-----------------------------------------------
-% SLIDE: Future Methods - Distributional RL
+% Slide: With Experience Replay
 %-----------------------------------------------
-\begin{frame}{Future Methods: Distributional RL}
+\begin{frame}{Training With Experience Replay}
     \begin{center}
-        \textit{What if we learned the full distribution of returns?}
+        \begin{tikzpicture}[scale=0.6]
+            % Buffer
+            \node[draw, rectangle, fill=blue!10, minimum width=4cm, minimum height=3.5cm] (buf) at (0,0) {};
+            \node[above] at (0,2) {Replay Buffer};
+            % Food column
+            \node[draw, rectangle, fill=green!30, minimum width=1.2cm] at (-1.2,0.5) {\small Food};
+            % Wall column (stacked)
+            \node[draw, rectangle, fill=red!30, minimum width=1.2cm] at (0,0.8) {\small Wall};
+            \node[draw, rectangle, fill=red!30, minimum width=1.2cm] at (0,0.2) {\small Wall};
+            % Move column (stacked)
+            \node[draw, rectangle, fill=yellow!30, minimum width=1.2cm] at (1.2,0.8) {\small Move};
+            \node[draw, rectangle, fill=yellow!30, minimum width=1.2cm] at (1.2,0.2) {\small Move};
+        \end{tikzpicture}
+
+        \vspace{0.5cm}
+        {\color{green!50!black} Random sample from all}\\
+        Learns everything together!
     \end{center}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: DQN Variants
+%-----------------------------------------------
+\begin{frame}{DQN Variants}
+    \begin{itemize}
+        \item \textbf{Double DQN} -- Reduces overestimation bias
+        \vspace{0.3cm}
+        \item \textbf{Dueling DQN} -- Separates value and advantage: $Q(s,a) = V(s) + A(s,a)$
+        \vspace{0.3cm}
+        \item \textbf{PER} -- Prioritized Experience Replay
+        \vspace{0.3cm}
+        \item \textbf{Noisy DQN} -- Adds noise for exploration
+        \vspace{0.3cm}
+        \item \textbf{Rainbow} -- Combines all improvements
+    \end{itemize}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: Policy Gradient Methods
+%-----------------------------------------------
+\begin{frame}{Policy Gradient: PPO}
+    \textbf{Different approach:} Directly optimize the policy $\pi(a|s)$
 
     \vspace{0.5cm}
-    \begin{columns}[T]
-        \begin{column}{0.48\textwidth}
-            \textbf{Standard RL:}
-            \begin{itemize}
-                \item Learn expected return $\mathbb{E}[G]$
-                \item Single value per state-action
-                \item Ignores risk/variance
-            \end{itemize}
+    \textbf{PPO (Proximal Policy Optimization):}
+    \begin{itemize}
+        \item Actor-Critic architecture
+        \item Clipped surrogate objective (stable updates)
+        \item Most popular policy gradient method
+    \end{itemize}
 
-            \vspace{0.3cm}
+    \vspace{0.5cm}
+    \begin{center}
+        \begin{tikzpicture}[scale=0.7]
+            \node[draw, rectangle, fill=blue!20] (state) at (0,0) {State};
+            \node[draw, rectangle, fill=orange!30] (actor) at (3,0.8) {Actor $\pi$};
+            \node[draw, rectangle, fill=green!30] (critic) at (3,-0.8) {Critic $V$};
+            \node[draw, rectangle, fill=yellow!20] (action) at (6,0.8) {Action};
+            \node[draw, rectangle, fill=yellow!20] (value) at (6,-0.8) {Value};
+
+            \draw[->, thick] (state) -- (actor);
+            \draw[->, thick] (state) -- (critic);
+            \draw[->, thick] (actor) -- (action);
+            \draw[->, thick] (critic) -- (value);
+        \end{tikzpicture}
+    \end{center}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: PPO Demo
+%-----------------------------------------------
+\begin{frame}{PPO Agent Demo}
+    \begin{center}
+        \includegraphics[width=0.7\textwidth]{figures/training/ppo_basic_20251129_231638.png}
+
+        \vspace{0.3cm}
+        \textit{PPO agent trained with basic features}
+    \end{center}
+\end{frame}
+
+%===============================================
+% PRESENTER 4: Feature Engineering
+%===============================================
+\presentertitle{4}{Feature Engineering}
+
+%-----------------------------------------------
+% Slide: Limitations of Basic Features
+%-----------------------------------------------
+\begin{frame}{Can We Do Better?}
+    \textbf{Basic features work, but have limitations:}
+
+    \vspace{0.5cm}
+    \begin{itemize}
+        \item Only sees immediate neighbors
+        \item Cannot detect traps or dead-ends
+        \item No awareness of available space
+    \end{itemize}
+
+    \vspace{0.5cm}
+    \textbf{Let's explore better feature representations...}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: Death Causes Graph
+%-----------------------------------------------
+\begin{frame}{Why Do Agents Die?}
+    \begin{center}
+        \includegraphics[width=0.7\textwidth]{figures/training/double_dqn_basic_20251129_231638.png}
+
+        \vspace{0.3cm}
+        \textit{Most deaths come from self-collision (trapping)}
+    \end{center}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: The Trapping Problem
+%-----------------------------------------------
+\begin{frame}{The Trapping Problem}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
             \begin{center}
-                \begin{tikzpicture}[scale=0.5]
-                    \draw[->] (0,0) -- (4,0) node[right] {\scriptsize G};
-                    \draw[->] (0,0) -- (0,2);
-                    \draw[thick, blue, ->] (2,0) -- (2,1.5);
-                    \node[above, blue] at (2,1.5) {\scriptsize $Q(s,a)$};
+                \begin{tikzpicture}[scale=0.55]
+                    \draw[gray!30] (0,0) grid (8,8);
+                    \draw[black, thick] (0,0) rectangle (8,8);
+
+                    % Snake body forming L-shape trap
+                    \fill[green!50] (0,0) rectangle (1,1);
+                    \fill[green!50] (0,1) rectangle (1,2);
+                    \fill[green!50] (0,2) rectangle (1,3);
+                    \fill[green!50] (0,3) rectangle (1,4);
+                    \fill[green!50] (0,4) rectangle (1,5);
+                    \fill[green!50] (1,5) rectangle (2,6);
+                    \fill[green!50] (2,5) rectangle (3,6);
+                    \fill[green!50] (3,5) rectangle (4,6);
+                    \fill[green!50] (4,5) rectangle (5,6);
+                    \fill[green!50] (5,5) rectangle (6,6);
+                    \fill[green!50] (6,5) rectangle (7,6);
+                    \fill[green!70!black] (7,5) rectangle (8,6);
+                    \node at (7.5,5.5) {\tiny H};
+
+                    % Food in top right corner
+                    \fill[red!60] (7,7) rectangle (8,8);
+
+                    % Shade trapped area (same green as snake body)
+                    \fill[green!50] (0,5) rectangle (1,8);
+                    \fill[green!50] (1,6) rectangle (7,8);
+
+                    % Danger sensors (all clear!)
+                    \draw[->, blue, very thick] (7.5,6) -- (7.5,7);
+                    \node[blue, right] at (7.6,6.5) {\tiny OK};
                 \end{tikzpicture}
             \end{center}
         \end{column}
 
-        \begin{column}{0.48\textwidth}
-            \textbf{Distributional RL:}
+        \begin{column}{0.5\textwidth}
+            \textbf{What basic features see:}
             \begin{itemize}
-                \item Learn full distribution $Z(s,a)$
-                \item Captures risk and variance
-                \item Better feature learning
+                \item danger\_straight = 1 \checkmark
+                \item danger\_left = 0 \checkmark
+                \item danger\_right = 0 \checkmark
+                \item food\_left = 1 \checkmark
             \end{itemize}
 
             \vspace{0.3cm}
+            \textbf{Reality:}
+            \begin{itemize}
+                \item {\color{red} Only 3 cells reachable!}
+                \item Going left leads to death
+            \end{itemize}
+
+            \vspace{0.3cm}
+            \fbox{Agent can't see the trap}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: Flood-Fill Features
+%-----------------------------------------------
+\begin{frame}{Flood-Fill Features (13 dimensions)}
+    \textbf{Solution:} Add reachable space information
+
+    \vspace{0.5cm}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \textbf{New features:}
+            \begin{itemize}
+                \item Basic 10 features +
+                \item Reachable cells (straight)
+                \item Reachable cells (left)
+                \item Reachable cells (right)
+            \end{itemize}
+
+            \vspace{0.3cm}
+            \textbf{How it works:}
+            \begin{itemize}
+                \item BFS from each direction
+                \item Count accessible cells
+                \item Normalize by grid size
+            \end{itemize}
+        \end{column}
+
+        \begin{column}{0.5\textwidth}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: Results Comparison
+%-----------------------------------------------
+\begin{frame}{Feature Impact on Performance}
+    \begin{center}
+        \begin{tabular}{lccc}
+            \toprule
+            \textbf{Algorithm} & \textbf{Features} & \textbf{Avg Score} & \textbf{Max} \\
+            \midrule
+            DQN & Basic & 16.78 & 43 \\
+            DQN & Flood-fill & 25.44 & 51 \\
+            PPO & Basic & 17.69 & 43 \\
+            PPO & Flood-fill & 35.27 & 58 \\
+            \bottomrule
+        \end{tabular}
+    \end{center}
+
+    \vspace{0.5cm}
+    \textbf{Key insight:}
+    \begin{itemize}
+        \item Flood-fill improves scores by 52\% (DQN) and 99\% (PPO)
+        \item Feature engineering $>$ algorithm tuning
+    \end{itemize}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: Training Time Problem
+%-----------------------------------------------
+\begin{frame}{How to Speed Up Training?}
+    \begin{center}
+        \textit{RL requires millions of environment steps -- how can we make this faster?}
+    \end{center}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: Training Setup
+%-----------------------------------------------
+\begin{frame}{Training Setup: Vectorized Environments}
+    \textbf{CPU-Vectorized Parallel Training:}
+    \begin{itemize}
+        \item Run 256 snakes in parallel
+        \item CPU-vectorized environments
+        \item 40x speedup vs sequential
+    \end{itemize}
+
+    \vspace{0.5cm}
+    \textbf{Training time:}
+    \begin{itemize}
+        \item 35 min for all algorithms (basic features)
+        \item 2 hours for all algorithms (flood-fill)
+    \end{itemize}
+
+    \vspace{0.5cm}
+    \begin{center}
+        \begin{tikzpicture}[scale=0.4]
+            \foreach \i in {0,1,2,3,4} {
+                \draw[gray!50] (\i*2,0) grid (\i*2+1.5,1.5);
+                \fill[green!50] (\i*2+0.5,0.5) rectangle (\i*2+1,1);
+                \fill[red!50] (\i*2+1,1) rectangle (\i*2+1.5,1.5);
+            }
+            \node at (5,-0.5) {...256 parallel games};
+        \end{tikzpicture}
+    \end{center}
+\end{frame}
+
+%===============================================
+% PRESENTER 5: Two-Snake Demonstration
+%===============================================
+\presentertitle{5}{Two-Snake Competition}
+
+%-----------------------------------------------
+% Slide: Two-Snake Environment
+%-----------------------------------------------
+\begin{frame}{Two-Snake Environment}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \textbf{Rules:}
+            \begin{itemize}
+                \item Two snakes compete
+                \item Same food, same grid
+                \item Collision = death
+                \item First to 10 food wins
+            \end{itemize}
+
+            \vspace{0.3cm}
+            \textbf{New Challenges:}
+            \begin{itemize}
+                \item Opponent prediction
+                \item Food competition
+                \item Defensive play
+            \end{itemize}
+        \end{column}
+
+        \begin{column}{0.5\textwidth}
             \begin{center}
-                \begin{tikzpicture}[scale=0.5]
-                    \draw[->] (0,0) -- (4,0) node[right] {\scriptsize G};
-                    \draw[->] (0,0) -- (0,2);
-                    \draw[thick, green!50!black, domain=0.3:3.7, samples=50] plot (\x, {1.2*exp(-1.5*(\x-2)^2)});
-                    \node[above, green!50!black] at (2,1.5) {\scriptsize $Z(s,a)$};
+                \begin{tikzpicture}[scale=0.4]
+                    \draw[gray!30] (0,0) grid (8,8);
+                    \draw[black, thick] (0,0) rectangle (8,8);
+
+                    % Snake 1 (green)
+                    \fill[green!50] (0,4) rectangle (1,5);
+                    \fill[green!50] (1,4) rectangle (2,5);
+                    \fill[green!70!black] (2,4) rectangle (3,5);
+
+                    % Snake 2 (blue)
+                    \fill[blue!50] (7,4) rectangle (8,5);
+                    \fill[blue!50] (6,4) rectangle (7,5);
+                    \fill[blue!70!black] (5,4) rectangle (6,5);
+
+                    % Food
+                    \fill[red!60] (3,6) rectangle (4,7);
                 \end{tikzpicture}
             \end{center}
         \end{column}
     \end{columns}
+\end{frame}
 
-    \vspace{0.3cm}
+%-----------------------------------------------
+% Slide: Naive Approach - Self-Play
+%-----------------------------------------------
+\begin{frame}{Naive Approach: Self-Play from Scratch}
+    \textbf{Idea:} Both agents learn simultaneously against each other
+
+    \vspace{0.5cm}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \textbf{How it works:}
+            \begin{itemize}
+                \item Both snakes start untrained
+                \item Learn by playing each other
+                \item Update both policies together
+            \end{itemize}
+
+            \vspace{0.3cm}
+            \textbf{Problems:}
+            \begin{itemize}
+                \item Non-stationary environment
+                \item Both agents are bad initially
+                \item Unstable learning dynamics
+            \end{itemize}
+        \end{column}
+
+        \begin{column}{0.5\textwidth}
+            \begin{center}
+                \begin{tikzpicture}[scale=0.6]
+                    \node[draw, rectangle, fill=green!20, minimum width=1.5cm] (a1) at (0,0) {Agent 1};
+                    \node[draw, rectangle, fill=blue!20, minimum width=1.5cm] (a2) at (4,0) {Agent 2};
+                    \node[draw, rectangle, fill=gray!20, minimum width=2cm] (env) at (2,-2) {Environment};
+
+                    \draw[->, thick] (a1) -- (env);
+                    \draw[->, thick] (a2) -- (env);
+                    \draw[->, thick, dashed] (env) -- (a1);
+                    \draw[->, thick, dashed] (env) -- (a2);
+
+                    \node[red] at (2,-3.5) {\small Both changing!};
+                \end{tikzpicture}
+            \end{center}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: Self-Play Demo
+%-----------------------------------------------
+\begin{frame}{Self-Play Results}
     \begin{center}
-        \fbox{Distributional RL: $Q(s,a) = \mathbb{E}[Z(s,a)]$ but $Z$ carries more information}
+        \textit{Both agents struggle to learn meaningful behavior}
     \end{center}
 \end{frame}
 
 %-----------------------------------------------
-% SLIDE: Future Methods (cont.)
+% Slide: Solution - Curriculum Learning
 %-----------------------------------------------
-\begin{frame}{Future Methods (cont.)}
+\begin{frame}{Solution: Curriculum Learning}
+    \textbf{Idea:} Train against progressively harder opponents
+
+    \vspace{0.5cm}
     \begin{itemize}
-        \item \textbf{Imitation Learning}
-        \begin{itemize}
-            \item Learn from expert demonstrations
-            \item Bypasses reward engineering problem
-        \end{itemize}
+        \item Start with simple, \textbf{fixed} opponents
+        \item Agent learns basic skills first
+        \item Gradually increase difficulty
+        \item Only use self-play at the end
+    \end{itemize}
 
-        \item \textbf{Model-Based RL}
-        \begin{itemize}
-            \item Learn a model of the environment
-            \item Plan using the learned model (more sample efficient)
-        \end{itemize}
+    \vspace{0.5cm}
+    \begin{center}
+        \fbox{Stable opponents $\rightarrow$ stable learning}
+    \end{center}
+\end{frame}
 
-        \item \textbf{Offline RL}
-        \begin{itemize}
-            \item Learn from logged data without exploration
-            \item Safer deployment in critical applications
-        \end{itemize}
+%-----------------------------------------------
+% Slide: Curriculum Learning
+%-----------------------------------------------
+\begin{frame}{Curriculum Learning Stages}
+    \textbf{Train RL agent against progressively harder opponents:}
+
+    \vspace{0.3cm}
+    \begin{center}
+        \begin{tabular}{clcc}
+            \toprule
+            \textbf{Stage} & \textbf{Opponent} & \textbf{Steps} & \textbf{Threshold} \\
+            \midrule
+            0 & Static & 0.5-1M & 95\% \\
+            1 & Random & 0.5-1M & 95\% \\
+            2 & Greedy & 3-6M & 35\% \\
+            3 & Frozen (self) & 2-4M & 90\% \\
+            4 & Co-evolution & 14M & --- \\
+            \bottomrule
+        \end{tabular}
+    \end{center}
+
+    \vspace{0.3cm}
+    \begin{center}
+        \fbox{Gradually increase opponent difficulty}
+    \end{center}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: Two-Snake Demo
+%-----------------------------------------------
+\begin{frame}{Competitive Match Demo}
+    \begin{center}
+        \textit{Trained agents competing head-to-head}
+    \end{center}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: Two-Snake Results
+%-----------------------------------------------
+\begin{frame}{Two-Snake Results}
+    \textbf{Observed behaviors:}
+    \begin{itemize}
+        \item Aggressive food pursuit
+        \item Defensive space control
+        \item Opponent blocking strategies
+    \end{itemize}
+
+    \vspace{0.5cm}
+    \textbf{Competition results (1000 games):}
+    \begin{center}
+        \begin{tabular}{lccc}
+            \toprule
+            \textbf{Method} & \textbf{256x256} & \textbf{128x128} & \textbf{Draw} \\
+            \midrule
+            DQN Direct & 0\% & 0\% & 100\% \\
+            PPO Direct (2M) & 51\% & 31\% & 18\% \\
+            PPO Direct (14M) & 33\% & 42\% & 26\% \\
+            PPO Curriculum & 40\% & 38\% & 22\% \\
+            \bottomrule
+        \end{tabular}
+    \end{center}
+\end{frame}
+
+%===============================================
+% PRESENTER 6: Limitations & Future Development
+%===============================================
+\presentertitle{6}{Limitations \& Future}
+
+%-----------------------------------------------
+% Slide: Limitations - Sample Inefficiency
+%-----------------------------------------------
+\begin{frame}{Limitation: Sample Inefficiency}
+    \begin{center}
+        \includegraphics[width=0.5\textwidth]{"figures/sample inefficiency curves.png"}
+    \end{center}
+
+    \vspace{0.3cm}
+    \begin{center}
+        \fbox{Sample efficiency is the biggest bottleneck}
+    \end{center}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: Training Results Grid
+%-----------------------------------------------
+\begin{frame}{Training Results Overview}
+    \begin{center}
+    \tiny
+    \setlength{\tabcolsep}{1pt}
+    \renewcommand{\arraystretch}{0.5}
+    \begin{tabular}{cccc}
+        \includegraphics[width=0.24\textwidth]{figures/training/dqn_basic_20251129_231638.png} &
+        \includegraphics[width=0.24\textwidth]{figures/training/dqn_flood-fill_20251129_231638.png} &
+        \includegraphics[width=0.24\textwidth]{figures/training/dqn_selective_20251129_231638.png} &
+        \includegraphics[width=0.24\textwidth]{figures/training/dqn_enhanced_20251201_020448.png} \\
+        \includegraphics[width=0.24\textwidth]{figures/training/double_dqn_basic_20251129_231638.png} &
+        \includegraphics[width=0.24\textwidth]{figures/training/double_dqn_flood-fill_20251129_231638.png} &
+        \includegraphics[width=0.24\textwidth]{figures/training/double_dqn_selective_20251129_231638.png} &
+        \includegraphics[width=0.24\textwidth]{figures/training/double_dqn_enhanced_20251201_020450.png} \\
+        \includegraphics[width=0.24\textwidth]{figures/training/dueling_dqn_basic_20251129_231638.png} &
+        \includegraphics[width=0.24\textwidth]{figures/training/dueling_dqn_flood-fill_20251129_231638.png} &
+        \includegraphics[width=0.24\textwidth]{figures/training/dueling_dqn_selective_20251129_231638.png} &
+        \includegraphics[width=0.24\textwidth]{figures/training/dueling_dqn_enhanced_20251201_020452.png} \\
+        \includegraphics[width=0.24\textwidth]{figures/training/noisy_dqn_basic_20251129_231638.png} &
+        \includegraphics[width=0.24\textwidth]{figures/training/noisy_dqn_flood-fill_20251129_231638.png} &
+        \includegraphics[width=0.24\textwidth]{figures/training/noisy_dqn_selective_20251130_165637.png} &
+        \includegraphics[width=0.24\textwidth]{figures/training/noisy_dqn_enhanced_20251201_020454.png} \\
+        \includegraphics[width=0.24\textwidth]{figures/training/per_dqn_basic_20251129_231638.png} &
+        \includegraphics[width=0.24\textwidth]{figures/training/per_dqn_flood-fill_20251129_231638.png} &
+        \includegraphics[width=0.24\textwidth]{figures/training/per_dqn_selective_20251130_204729.png} &
+        \includegraphics[width=0.24\textwidth]{figures/training/per_dqn_enhanced_20251201_020456.png} \\
+        \includegraphics[width=0.24\textwidth]{figures/training/ppo_basic_20251129_231638.png} &
+        \includegraphics[width=0.24\textwidth]{figures/training/ppo_flood-fill_20251129_231638.png} &
+        \includegraphics[width=0.24\textwidth]{figures/training/a2c_basic_20251129_231638.png} &
+        \includegraphics[width=0.24\textwidth]{figures/training/a2c_flood-fill_20251129_231638.png} \\
+    \end{tabular}
+    \end{center}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: Limitations - Unreliability
+%-----------------------------------------------
+\begin{frame}{Limitation: Unreliability}
+    \textbf{Sensitive to initial conditions:} Same algorithm, different random seed
+
+    \vspace{0.3cm}
+    \begin{center}
+        \includegraphics[width=0.7\textwidth]{"figures/sample algorithm different seeds.png"}
+    \end{center}
+
+    \vspace{0.3cm}
+    \begin{center}
+        \textit{Results vary dramatically with different seeds}
+    \end{center}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: Other Limitations
+%-----------------------------------------------
+\begin{frame}{Other Limitations}
+    \begin{itemize}
+        \item \textbf{Reward Engineering} -- Designing good reward functions is difficult
+        \vspace{0.3cm}
+        \item \textbf{Sim-to-Real Gap} -- Policies trained in simulation may not transfer
+        \vspace{0.3cm}
+        \item \textbf{Safety} -- Exploration can be dangerous in real world
+        \vspace{0.3cm}
+        \item \textbf{Hyperparameter Sensitivity} -- Small changes can break training
     \end{itemize}
 \end{frame}
 
 %-----------------------------------------------
-% SLIDE: Future Methods (cont. 2)
+% Slide: Future Development in RL
 %-----------------------------------------------
-\begin{frame}{Future Methods (cont.)}
+\begin{frame}{Future Development in RL}
     \begin{itemize}
-        \item \textbf{Foundation Models for RL}
-        \begin{itemize}
-            \item Large pretrained models as world models
-            \item Transfer learning across tasks
-        \end{itemize}
-
-        \item \textbf{Multi-Agent RL}
-        \begin{itemize}
-            \item Cooperative and competitive settings
-            \item Emergent behaviors and communication
-        \end{itemize}
-
-        \item \textbf{Human-in-the-Loop RL}
-        \begin{itemize}
-            \item RLHF (Reinforcement Learning from Human Feedback)
-            \item Aligning agents with human preferences
-        \end{itemize}
+        \item \textbf{Bayesian RL} -- Reason about uncertainty
+        \item \textbf{Distributional RL} -- Learn full return distribution
+        \item \textbf{Imitation Learning} -- Learn from expert demonstrations
+        \item \textbf{RLHF} -- Align with human preferences
     \end{itemize}
 \end{frame}
 
 %-----------------------------------------------
-% SLIDE: References
+% Slide: Real-World Applications
+%-----------------------------------------------
+\begin{frame}{Real-World Applications}
+    \begin{itemize}
+        \item \textbf{Games \& Simulation} -- AlphaGo, AlphaZero, OpenAI Five (Dota 2)
+        \vspace{0.3cm}
+        \item \textbf{Robotics} -- Locomotion, Navigation
+        \vspace{0.3cm}
+        \item \textbf{Real-World Systems} -- Autonomous vehicles
+        \vspace{0.3cm}
+        \item \textbf{Language Models} -- RLHF for LLMs
+    \end{itemize}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: Key Takeaway
+%-----------------------------------------------
+\begin{frame}{Key Takeaway}
+    \begin{center}
+        \vspace{1.5cm}
+        {\Large \textbf{RL is a powerful tool}}
+
+        \vspace{0.5cm}
+        {\Large \textbf{if you know how to engineer it}}
+
+        \vspace{1.5cm}
+        \textbf{Techniques:} Feature engineering, Algorithm choice, Hyperparameters, Curriculum learning, GPU acceleration
+    \end{center}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: References
 %-----------------------------------------------
 \begin{frame}{References}
     \begin{itemize}
         \item Sutton, R. S., \& Barto, A. G. (2018). \textit{Reinforcement Learning: An Introduction} (2nd ed.). MIT Press.
-        \item OpenAI. \textit{Spinning Up in Deep RL}. \url{https://spinningup.openai.com/}
-        \item Irpan, A. (2018). \textit{Deep Reinforcement Learning Doesn't Work Yet}. \url{https://www.alexirpan.com/2018/02/14/rl-hard.html}
+        \item Mnih, V., et al. (2015). Human-level control through deep reinforcement learning. Nature.
+        \item Schulman, J., et al. (2017). Proximal Policy Optimization Algorithms.
+        \item OpenAI. \textit{Spinning Up in Deep RL}. https://spinningup.openai.com/
+        \item Irpan, A. (2018). \textit{Deep Reinforcement Learning Doesn't Work Yet}. https://www.alexirpan.com/2018/02/14/rl-hard.html
     \end{itemize}
+\end{frame}
+
+%-----------------------------------------------
+% Slide: Q&A
+%-----------------------------------------------
+\begin{frame}{Questions?}
+    \begin{center}
+        \vspace{2cm}
+        {\Huge \textbf{Q\&A}}
+
+        \vspace{1cm}
+        \textit{Thank you for your attention!}
+        \vspace{2cm}
+    \end{center}
+\end{frame}
+
+%-----------------------------------------------
+% Blank Slide
+%-----------------------------------------------
+\begin{frame}
 \end{frame}
 
 \end{document}
