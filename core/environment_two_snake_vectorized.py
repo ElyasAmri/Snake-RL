@@ -559,26 +559,38 @@ class VectorizedTwoSnakeEnv:
         return collected
 
     def _check_win_conditions(self):
-        """Check win conditions for all environments"""
-        # Win by reaching target food
+        """Check win conditions for all environments
+
+        Win condition: First to reach target_food wins.
+        Survival alone does NOT count as a win - game continues until
+        the survivor reaches target food or times out (stalemate).
+        """
+        # Win by reaching target food (ONLY win condition)
         wins_by_food1 = self.food_counts1 >= self.target_food
         wins_by_food2 = self.food_counts2 >= self.target_food
 
-        # Win by being last alive
-        wins_by_survival1 = self.alive1 & ~self.alive2
-        wins_by_survival2 = self.alive2 & ~self.alive1
-
-        # Stalemate (timeout or both dead)
+        # Stalemate: both dead OR timeout (neither reached target)
         both_dead = ~self.alive1 & ~self.alive2
         timeout = self.steps >= self.max_steps
         stalemate = both_dead | timeout
 
-        # Set winners (priority: food > survival > stalemate)
-        self.round_winners = torch.where(wins_by_food1, torch.ones_like(self.round_winners), self.round_winners)
-        self.round_winners = torch.where(wins_by_food2, torch.full_like(self.round_winners, 2), self.round_winners)
-        self.round_winners = torch.where(wins_by_survival1 & (self.round_winners == 0), torch.ones_like(self.round_winners), self.round_winners)
-        self.round_winners = torch.where(wins_by_survival2 & (self.round_winners == 0), torch.full_like(self.round_winners, 2), self.round_winners)
-        self.round_winners = torch.where(stalemate & (self.round_winners == 0), torch.full_like(self.round_winners, 3), self.round_winners)
+        # Set winners (priority: food > stalemate)
+        # Note: If both reach target same step, snake 1 wins (first check)
+        self.round_winners = torch.where(
+            wins_by_food1,
+            torch.ones_like(self.round_winners),
+            self.round_winners
+        )
+        self.round_winners = torch.where(
+            wins_by_food2 & (self.round_winners == 0),
+            torch.full_like(self.round_winners, 2),
+            self.round_winners
+        )
+        self.round_winners = torch.where(
+            stalemate & (self.round_winners == 0),
+            torch.full_like(self.round_winners, 3),
+            self.round_winners
+        )
 
     def _get_observations(self) -> Tuple[torch.Tensor, torch.Tensor]:
         """Get observations for both snakes using competitive feature encoder"""

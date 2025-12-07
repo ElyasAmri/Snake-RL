@@ -61,7 +61,7 @@ def plot_training_results(name: str, rewards: list, scores: list, metrics, save_
              color='blue', fontsize=9, fontweight='bold')
     ax1.set_xlabel('Episode')
     ax1.set_ylabel('Score (Food Eaten)')
-    ax1.set_xlim(0, 2000)
+    ax1.set_xlim(0, 3000)
     ax1.set_ylim(0, 100)
     ax1.set_title(f'{name} - Episode Scores')
     ax1.legend(['Raw', 'Smoothed (50)'], loc='upper left')
@@ -263,7 +263,7 @@ POLICY_GRADIENT_ALGORITHMS = ["PPO", "A2C", "REINFORCE"]
 
 def main():
     parser = argparse.ArgumentParser(description="Train all single-snake RL models")
-    parser.add_argument("--episodes", type=int, default=5000, help="Number of episodes per model")
+    parser.add_argument("--episodes", type=int, default=3000, help="Number of episodes per model")
     parser.add_argument("--num-envs", type=int, default=256, help="Number of parallel environments")
     parser.add_argument("--seed", type=int, default=67, help="Random seed")
     parser.add_argument("--grid-size", type=int, default=10, help="Grid size")

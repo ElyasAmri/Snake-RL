@@ -13,12 +13,13 @@ A comprehensive implementation of reinforcement learning algorithms trained to p
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Algorithms Implemented](#algorithms-implemented)
-- [Training Notebooks](#training-notebooks)
+- [Training Scripts](#training-scripts)
 - [Visualizers](#visualizers)
 - [Baseline Agents](#baseline-agents)
 - [State Representations](#state-representations)
 - [Results](#results)
 - [Report](#report)
+- [Reproducibility](#reproducibility)
 - [Running Tests](#running-tests)
 - [Acknowledgments](#acknowledgments)
 
@@ -54,15 +55,11 @@ Snake-RL/
 |   +-- state_representations.py    # Feature encoders
 |   +-- utils.py                    # Replay buffers, schedulers, metrics
 |
-+-- notebooks/            # Jupyter notebooks
-|   +-- 01_baseline_testing.ipynb   # Baseline agent evaluation
-|   +-- 02_model_evaluation.ipynb   # Full model comparison
-|   +-- training/                   # Algorithm-specific training notebooks
-|
 +-- scripts/              # Python scripts
 |   +-- baselines/        # Baseline agents (random, A*, scripted)
-|   +-- training/         # Training scripts
+|   +-- training/         # Training scripts for all algorithms
 |   +-- visualizer/       # Pygame visualizers
+|   +-- evaluation/       # Evaluation and plotting scripts
 |
 +-- results/              # Training outputs
 |   +-- weights/          # Model checkpoints (.pt files)
@@ -115,7 +112,7 @@ Snake-RL/
 
 5. **Verify installation:**
    ```bash
-   ./venv/Scripts/python.exe -c "import torch; print(f'PyTorch: {torch.__version__}, CUDA: {torch.cuda.is_available()}')"
+   python -c "import torch; print(f'PyTorch: {torch.__version__}, CUDA: {torch.cuda.is_available()}')"
    ```
 
 ---
@@ -125,24 +122,23 @@ Snake-RL/
 ### Train a DQN Agent
 
 ```bash
-./venv/Scripts/python.exe -m papermill notebooks/training/train_dqn.ipynb output.ipynb \
-  -p NUM_EPISODES 1000 -p USE_FLOOD_FILL True
+python scripts/training/train_dqn.py
 ```
 
 ### Visualize a Trained Agent
 
 ```bash
-./venv/Scripts/python.exe scripts/visualizer/visualize_snake.py \
+python scripts/visualizer/visualize_snake.py \
   --mode trained \
-  --weights results/weights/dqn_mlp_floodfill_128x128_5000ep_20251121_025811.pt \
+  --weights results/weights/dqn_floodfill.pt \
   --network dqn \
   --fps 15
 ```
 
-### Run Model Evaluation
+### Run Two-Snake Competition
 
 ```bash
-./venv/Scripts/python.exe -m papermill notebooks/02_model_evaluation.ipynb output.ipynb
+python scripts/run_two_snake_experiments.py
 ```
 
 ---
@@ -181,58 +177,38 @@ Snake-RL/
 
 ---
 
-## Training Notebooks
+## Training Scripts
 
-All training notebooks support parameterization via [papermill](https://papermill.readthedocs.io/).
+All training scripts are located in `scripts/training/`.
 
-### Available Notebooks
+### Available Scripts
 
-| Notebook | Algorithm | Description |
-|----------|-----------|-------------|
-| `train_dqn.ipynb` | DQN | Vanilla Deep Q-Network |
-| `train_double_dqn.ipynb` | Double DQN | Reduced overestimation |
-| `train_dueling_dqn.ipynb` | Dueling DQN | Value/advantage separation |
-| `train_noisy_dqn.ipynb` | Noisy DQN | Parametric exploration |
-| `train_per_dqn.ipynb` | PER DQN | Prioritized replay |
-| `train_ppo.ipynb` | PPO | Proximal Policy Optimization |
-| `train_a2c.ipynb` | A2C | Advantage Actor-Critic |
-| `train_reinforce.ipynb` | REINFORCE | Policy gradient |
-| `train_two_snake_classic.ipynb` | Classic DQN | Two-snake co-evolution |
-| `train_ppo_two_snake_mlp.ipynb` | PPO Two-Snake | Direct co-evolution |
-| `train_ppo_two_snake_mlp_curriculum.ipynb` | PPO Curriculum | 5-stage curriculum |
-| `train_dqn_two_snake_curriculum.ipynb` | DQN Curriculum | 5-stage curriculum |
-
-### Common Parameters
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `GRID_SIZE` | 10 | Game grid dimensions |
-| `NUM_ENVS` | 256 | Parallel environments (GPU) |
-| `NUM_EPISODES` | 500 | Training episodes |
-| `LEARNING_RATE` | 0.001 | Optimizer learning rate |
-| `BATCH_SIZE` | 64 | Mini-batch size |
-| `GAMMA` | 0.99 | Discount factor |
-| `USE_FLOOD_FILL` | False | Enable flood-fill features |
+| Script | Algorithm | Description |
+|--------|-----------|-------------|
+| `train_dqn.py` | DQN | Vanilla Deep Q-Network |
+| `train_ppo.py` | PPO | Proximal Policy Optimization |
+| `train_a2c.py` | A2C | Advantage Actor-Critic |
+| `train_reinforce.py` | REINFORCE | Policy gradient |
+| `train_rainbow.py` | Rainbow | Combined DQN improvements |
+| `train_all_models.py` | All | Train all single-snake algorithms |
+| `train_two_snake_classic.py` | DQN | Two-snake co-evolution |
+| `train_ppo_two_snake_mlp.py` | PPO | Two-snake direct co-evolution |
+| `train_ppo_two_snake_mlp_curriculum.py` | PPO | 5-stage curriculum learning |
 
 ### Training Examples
 
 ```bash
-# DQN with flood-fill features (5000 episodes)
-./venv/Scripts/python.exe -m papermill notebooks/training/train_dqn.ipynb output.ipynb \
-  -p NUM_EPISODES 5000 \
-  -p USE_FLOOD_FILL True \
-  -p NUM_ENVS 256
+# Train DQN agent
+python scripts/training/train_dqn.py
 
-# PPO with custom learning rate
-./venv/Scripts/python.exe -m papermill notebooks/training/train_ppo.ipynb output.ipynb \
-  -p NUM_EPISODES 10000 \
-  -p LEARNING_RATE 0.0003 \
-  -p USE_FLOOD_FILL True
+# Train PPO agent
+python scripts/training/train_ppo.py
+
+# Train all single-snake models
+python scripts/training/train_all_models.py
 
 # Two-snake curriculum training
-./venv/Scripts/python.exe -m papermill notebooks/training/train_ppo_two_snake_mlp_curriculum.ipynb output.ipynb \
-  -p STAGE0_MIN_STEPS 10000 \
-  -p STAGE4_MIN_STEPS 50000
+python scripts/training/train_ppo_two_snake_mlp_curriculum.py
 ```
 
 ---
@@ -244,7 +220,7 @@ All training notebooks support parameterization via [papermill](https://papermil
 Real-time visualization of single-snake agents using Pygame.
 
 ```bash
-./venv/Scripts/python.exe scripts/visualizer/visualize_snake.py [OPTIONS]
+python scripts/visualizer/visualize_snake.py [OPTIONS]
 ```
 
 | Argument | Values | Default | Description |
@@ -261,17 +237,17 @@ Real-time visualization of single-snake agents using Pygame.
 
 ```bash
 # Watch random agent
-./venv/Scripts/python.exe scripts/visualizer/visualize_snake.py --mode random --fps 15
+python scripts/visualizer/visualize_snake.py --mode random --fps 15
 
 # Watch trained Dueling DQN
-./venv/Scripts/python.exe scripts/visualizer/visualize_snake.py \
+python scripts/visualizer/visualize_snake.py \
   --mode trained \
-  --weights results/weights/dueling_dqn_mlp_floodfill_128x128_5000ep_20251121_115531.pt \
+  --weights results/weights/dueling_dqn_floodfill.pt \
   --network dueling \
   --fps 10
 
 # Watch real-time training
-./venv/Scripts/python.exe scripts/visualizer/visualize_snake.py \
+python scripts/visualizer/visualize_snake.py \
   --mode training \
   --algorithm dqn \
   --episodes 500 \
@@ -283,7 +259,7 @@ Real-time visualization of single-snake agents using Pygame.
 Real-time visualization of competitive two-snake matches.
 
 ```bash
-./venv/Scripts/python.exe scripts/visualizer/visualize_two_snake.py [OPTIONS]
+python scripts/visualizer/visualize_two_snake.py [OPTIONS]
 ```
 
 | Argument | Values | Default | Description |
@@ -299,19 +275,19 @@ Real-time visualization of competitive two-snake matches.
 
 ```bash
 # Random vs random
-./venv/Scripts/python.exe scripts/visualizer/visualize_two_snake.py --mode random --fps 10
+python scripts/visualizer/visualize_two_snake.py --mode random --fps 10
 
 # Trained agents compete
-./venv/Scripts/python.exe scripts/visualizer/visualize_two_snake.py \
+python scripts/visualizer/visualize_two_snake.py \
   --mode trained \
-  --weights1 results/weights/ppo_two_snake_mlp/big_256x256_final_20251124_055135.pt \
-  --weights2 results/weights/ppo_two_snake_mlp/small_128x128_final_20251124_055135.pt \
+  --weights1 results/weights/ppo_coevolution/256x256_coevo.pt \
+  --weights2 results/weights/ppo_coevolution/128x128_coevo.pt \
   --episodes 20
 
 # Trained agent vs greedy scripted opponent
-./venv/Scripts/python.exe scripts/visualizer/visualize_two_snake.py \
+python scripts/visualizer/visualize_two_snake.py \
   --mode scripted \
-  --weights1 results/weights/competitive/Stage2_Greedy/big_256x256_latest.pt \
+  --weights1 results/weights/ppo_curriculum_256x256/stage3_final_256x256.pt \
   --opponent greedy
 ```
 
@@ -378,12 +354,11 @@ opponent = get_scripted_agent('greedy', device=torch.device('cuda'))
 
 ## Results
 
-### Evaluation Notebook
-
-Run the comprehensive evaluation:
+### Running Evaluation
 
 ```bash
-./venv/Scripts/python.exe -m papermill notebooks/02_model_evaluation.ipynb output.ipynb
+python scripts/run_two_snake_experiments.py
+python scripts/generate_score_plots.py
 ```
 
 ### Generated Outputs
@@ -420,17 +395,136 @@ The full project report is available at `report/report.pdf`.
 
 ---
 
+## Reproducibility
+
+This section provides instructions to reproduce all results from scratch.
+
+### Hardware Requirements
+
+- **GPU:** NVIDIA GPU with CUDA support (tested with CUDA 13.0)
+- **RAM:** 16GB+ recommended for vectorized training with 256 environments
+- **Training Time:** ~2-4 hours per single-snake algorithm, ~6-8 hours for two-snake curriculum
+
+### Step 1: Environment Setup
+
+```bash
+# Clone and setup
+git clone https://github.com/elyashium/Snake-RL.git
+cd Snake-RL
+python -m venv venv
+
+# Activate (Windows)
+.\venv\Scripts\activate
+
+# Activate (Linux/Mac)
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Verify CUDA availability
+python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
+```
+
+### Step 2: Train Single-Snake Agents
+
+Train all single-snake algorithms:
+
+```bash
+# Train all models at once
+python scripts/training/train_all_models.py
+
+# Or train individually
+python scripts/training/train_dqn.py
+python scripts/training/train_ppo.py
+python scripts/training/train_a2c.py
+python scripts/training/train_reinforce.py
+python scripts/training/train_rainbow.py
+```
+
+Model weights are saved to `results/weights/`.
+
+### Step 3: Train Two-Snake Agents
+
+```bash
+# PPO with curriculum learning (recommended)
+python scripts/training/train_ppo_two_snake_mlp_curriculum.py
+
+# DQN co-evolution
+python scripts/training/train_two_snake_classic.py
+
+# PPO direct co-evolution
+python scripts/training/train_ppo_two_snake_mlp.py
+```
+
+### Step 4: Evaluate Models
+
+Run evaluation scripts to generate metrics and figures:
+
+```bash
+python scripts/run_two_snake_experiments.py
+python scripts/generate_score_plots.py
+```
+
+This generates:
+- `results/figures/` - All comparison plots
+- `results/data/evaluation_results_latest.json` - Full metrics
+- `results/data/single_snake_summary_latest.csv` - Summary table
+
+### Step 5: Verify Results
+
+Run the test suite to verify environment and training correctness:
+
+```bash
+python -m pytest tests/ -v
+```
+
+### Pretrained Weights
+
+Pretrained weights are included in `results/weights/` for immediate evaluation:
+
+| Model | Path |
+|-------|------|
+| DQN Co-evolution | `results/weights/dqn_coevolution/` |
+| DQN Direct Co-evolution | `results/weights/dqn_direct_coevolution/` |
+| PPO Curriculum (128) | `results/weights/ppo_curriculum_128x128/` |
+| PPO Curriculum (256) | `results/weights/ppo_curriculum_256x256/` |
+| PPO Direct Co-evolution | `results/weights/ppo_direct_coevolution/` |
+| PPO Co-evolution | `results/weights/ppo_coevolution/` |
+
+### Reproducing Specific Experiments
+
+#### Grid Size Comparison
+
+```bash
+python scripts/evaluate_grid_sizes.py
+```
+
+#### Extended Training (50k episodes)
+
+```bash
+python scripts/generate_extended_training_plot.py
+```
+
+#### Two-Snake Competition Evaluation
+
+```bash
+python scripts/run_two_snake_experiments.py
+```
+
+---
+
 ## Running Tests
 
 ```bash
 # Run all tests
-./venv/Scripts/python.exe -m pytest tests/
+python -m pytest tests/
 
 # Run specific test file
-./venv/Scripts/python.exe -m pytest tests/test_environment.py
+python -m pytest tests/test_environment.py
 
 # Run with verbose output
-./venv/Scripts/python.exe -m pytest tests/ -v
+python -m pytest tests/ -v
 ```
 
 ---
@@ -443,7 +537,6 @@ This project was developed for **ECEN 446** at Texas A&M University.
 - [PyTorch](https://pytorch.org/) - Deep learning framework
 - [Gymnasium](https://gymnasium.farama.org/) - RL environment interface
 - [Pygame](https://www.pygame.org/) - Game visualization
-- [Papermill](https://papermill.readthedocs.io/) - Notebook parameterization
 
 ---
 

@@ -42,6 +42,7 @@ def evaluate_model(policy_net, grid_size: int, num_episodes: int, device, use_fl
     completed = 0
 
     policy_net.eval()
+    print(f"    Starting evaluation...", flush=True)
 
     while completed < num_episodes:
         with torch.no_grad():
@@ -75,14 +76,14 @@ def train_and_evaluate():
 
     # Training configuration
     train_grid_size = 10
-    train_episodes = 5000
-    eval_episodes = 500
+    train_episodes = 3000
+    eval_episodes = 200
     eval_grid_sizes = [8, 10, 15, 20]
 
     # Train on 10x10 with flood-fill features
     print(f"\nTraining DQN on {train_grid_size}x{train_grid_size} grid...")
-    print(f"Episodes: {train_episodes}")
-    print(f"Features: flood-fill (13 features)")
+    print(f"Episodes: {train_episodes}", flush=True)
+    print(f"Features: flood-fill (13 features)", flush=True)
     print()
 
     trainer = DQNTrainer(
@@ -129,7 +130,7 @@ def train_and_evaluate():
     results = {}
 
     for grid_size in eval_grid_sizes:
-        print(f"\nEvaluating on {grid_size}x{grid_size} grid ({eval_episodes} episodes)...")
+        print(f"\nEvaluating on {grid_size}x{grid_size} grid ({eval_episodes} episodes)...", flush=True)
 
         scores = evaluate_model(
             trainer.policy_net,

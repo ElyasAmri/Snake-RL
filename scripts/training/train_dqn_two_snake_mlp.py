@@ -66,6 +66,7 @@ class DQNConfig:
     seed: int = 67
     save_dir: str = 'results/weights/dqn_two_snake_mlp'
     max_time: Optional[int] = None
+    device: str = 'auto'  # 'cpu', 'cuda', or 'auto'
 
 
 class TwoSnakeDQN:
@@ -200,7 +201,13 @@ class TwoSnakeDQNTrainer:
     def __init__(self, config: DQNConfig):
         set_seed(config.seed)
         self.config = config
-        self.device = get_device()
+
+        # Device selection
+        if config.device == 'auto':
+            self.device = get_device()
+        else:
+            self.device = torch.device(config.device)
+            print(f"Using device: {self.device}")
 
         # Save directory
         self.save_dir = Path(config.save_dir)
@@ -356,10 +363,17 @@ class TwoSnakeDQNTrainer:
 
             # Logging
             if self.total_steps % self.config.log_interval == 0:
-                win_rate = self.calculate_win_rate(100)
+                win_rate_256, win_rate_128, draw_rate = self.calculate_win_rates(100)
                 self.win_rate_history.append({
-                    'step': self.total_steps,
-                    'win_rate': win_rate
+                    'step': int(self.total_steps),
+                    'win_rate_256': float(win_rate_256),
+                    'win_rate_128': float(win_rate_128),
+                    'draw_rate': float(draw_rate),
+                    'avg_score_256': float(np.mean(self.scores1[-100:])) if self.scores1 else 0,
+                    'avg_score_128': float(np.mean(self.scores2[-100:])) if self.scores2 else 0,
+                    'loss_256': float(np.mean(self.losses1[-100:])) if self.losses1 else 0,
+                    'loss_128': float(np.mean(self.losses2[-100:])) if self.losses2 else 0,
+                    'episodes_completed': len(self.round_winners)
                 })
 
                 avg_loss1 = np.mean(self.losses1[-100:]) if self.losses1 else 0
@@ -367,11 +381,10 @@ class TwoSnakeDQNTrainer:
                 avg_score2 = np.mean(self.scores2[-100:]) if self.scores2 else 0
                 epsilon = self.agent1.epsilon_scheduler.get_epsilon()
 
-                print(f"[Step {self.total_steps:>6}] "
-                      f"Win Rate: {win_rate:.2%} | "
-                      f"Scores: {avg_score1:.1f} vs {avg_score2:.1f} | "
-                      f"Loss: {avg_loss1:.4f} | "
-                      f"Epsilon: {epsilon:.3f}", flush=True)
+                print(f"[Step {self.total_steps:>10,} / {self.config.total_steps:,}] "
+                      f"Win: 256={win_rate_256:.1%} 128={win_rate_128:.1%} Draw={draw_rate:.1%} | "
+                      f"Score: {avg_score1:.1f} vs {avg_score2:.1f} | "
+                      f"Eps: {epsilon:.2f}", flush=True)
 
             # Periodic save
             if self.total_steps % self.config.save_interval == 0:
@@ -409,19 +422,38 @@ class TwoSnakeDQNTrainer:
 
         print(f"Saved checkpoint: {suffix}", flush=True)
 
+    def calculate_win_rates(self, window: int = 100):
+        """Calculate win rates for both networks"""
+        if len(self.round_winners) < window:
+            window = len(self.round_winners)
+        if window == 0:
+            return 0.0, 0.0, 0.0
+
+        recent = self.round_winners[-window:]
+        # 256x256 is snake 1 (agent1), 128x128 is snake 2 (agent2)
+        wins_256 = sum(1 for w in recent if w == 1)
+        wins_128 = sum(1 for w in recent if w == 2)
+        draws = sum(1 for w in recent if w == 3)
+
+        return wins_256 / window, wins_128 / window, draws / window
+
     def get_results(self) -> Dict:
         """Get training results for plotting/reporting"""
+        win_rate_256, win_rate_128, draw_rate = self.calculate_win_rates(min(1000, len(self.round_winners)))
         return {
             'algorithm': 'DQN',
             'curriculum': False,
             'total_steps': self.total_steps,
             'total_rounds': self.total_rounds,
             'final_win_rate': self.calculate_win_rate(),
+            'final_win_rate_256': win_rate_256,
+            'final_win_rate_128': win_rate_128,
+            'final_draw_rate': draw_rate,
             'win_rate_history': self.win_rate_history,
-            'avg_score1': float(np.mean(self.scores1[-100:])) if self.scores1 else 0,
-            'avg_score2': float(np.mean(self.scores2[-100:])) if self.scores2 else 0,
-            'scores1': self.scores1,
-            'scores2': self.scores2,
+            'avg_score_256': float(np.mean(self.scores1[-1000:])) if self.scores1 else 0,
+            'avg_score_128': float(np.mean(self.scores2[-1000:])) if self.scores2 else 0,
+            'std_score_256': float(np.std(self.scores1[-1000:])) if self.scores1 else 0,
+            'std_score_128': float(np.std(self.scores2[-1000:])) if self.scores2 else 0,
         }
 
 
@@ -432,7 +464,7 @@ def main():
     )
     parser.add_argument('--num-envs', type=int, default=128,
                         help='Number of parallel environments')
-    parser.add_argument('--total-steps', type=int, default=52500,
+    parser.add_argument('--total-steps', type=int, default=2_000_000,
                         help='Total training steps')
     parser.add_argument('--learning-rate', type=float, default=0.001,
                         help='Learning rate')
@@ -443,6 +475,8 @@ def main():
                         help='Random seed')
     parser.add_argument('--max-time', type=int, default=None,
                         help='Maximum training time in seconds')
+    parser.add_argument('--device', type=str, choices=['cpu', 'cuda', 'auto'],
+                        default='auto', help='Device to use (auto detects GPU if available)')
 
     args = parser.parse_args()
 
@@ -452,20 +486,49 @@ def main():
         learning_rate=args.learning_rate,
         save_dir=args.save_dir,
         seed=args.seed,
-        max_time=args.max_time
+        max_time=args.max_time,
+        device=args.device
     )
 
     trainer = TwoSnakeDQNTrainer(config)
     results = trainer.train()
 
-    # Save results
-    results_path = Path(config.save_dir) / 'results.json'
-    with open(results_path, 'w') as f:
-        # Convert win_rate_history to serializable format
-        results_serializable = {k: v for k, v in results.items() if k != 'win_rate_history'}
-        results_serializable['win_rate_history'] = results['win_rate_history']
-        json.dump(results_serializable, f, indent=2)
-    print(f"Results saved to: {results_path}", flush=True)
+    # Save results to data directory for consistency with other scripts
+    data_dir = Path('results/data')
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    history_data = {
+        'total_steps': results['total_steps'],
+        'total_episodes': results['total_rounds'],
+        'history': results['win_rate_history'],
+        'final_stats': {
+            'win_rate_256': results['final_win_rate_256'],
+            'win_rate_128': results['final_win_rate_128'],
+            'draw_rate': results['final_draw_rate'],
+            'avg_score_256': results['avg_score_256'],
+            'avg_score_128': results['avg_score_128'],
+            'std_score_256': results['std_score_256'],
+            'std_score_128': results['std_score_128']
+        },
+        'config': {
+            'total_steps': config.total_steps,
+            'target_food': config.target_food,
+            'num_envs': config.num_envs,
+            'grid_size': config.grid_size,
+            'learning_rate': config.learning_rate,
+            'gamma': config.gamma,
+            'batch_size': config.batch_size,
+            'buffer_size': config.buffer_size,
+            'epsilon_start': config.epsilon_start,
+            'epsilon_end': config.epsilon_end,
+            'epsilon_decay': config.epsilon_decay
+        }
+    }
+
+    history_path = data_dir / "dqn_direct_coevolution_history.json"
+    with open(history_path, 'w') as f:
+        json.dump(history_data, f, indent=2)
+    print(f"Training history saved to: {history_path}", flush=True)
 
 
 if __name__ == '__main__':

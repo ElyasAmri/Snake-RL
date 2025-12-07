@@ -112,7 +112,7 @@ class PPOTrainer:
         max_grad_norm: float = 0.5,
 
         # Training config
-        num_episodes: int = 5000,
+        num_episodes: int = 3000,
         max_steps: int = 1000,
 
         # Reward config

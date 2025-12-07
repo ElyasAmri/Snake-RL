@@ -68,7 +68,7 @@ class RainbowTrainer:
         target_update_freq: int = 500,
 
         # Training config
-        num_episodes: int = 5000,
+        num_episodes: int = 3000,
         max_steps: int = 1000,
         min_buffer_size: int = 1000,
         train_steps_ratio: float = 0.03125,

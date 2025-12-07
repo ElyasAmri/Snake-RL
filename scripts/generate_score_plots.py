@@ -198,12 +198,12 @@ def main():
     output_dir = Path('results/figures')
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Training configurations - 5000 episodes for all for fair comparison
+    # Training configurations - 3000 episodes for all for fair comparison
     configs = [
-        ('DQN', False, 5000),   # DQN basic
-        ('PPO', False, 5000),   # PPO basic
-        ('DQN', True, 5000),    # DQN flood-fill
-        ('PPO', True, 5000),    # PPO flood-fill
+        ('DQN', False, 3000),   # DQN basic
+        ('PPO', False, 3000),   # PPO basic
+        ('DQN', True, 3000),    # DQN flood-fill
+        ('PPO', True, 3000),    # PPO flood-fill
     ]
 
     for algorithm, use_flood_fill, num_episodes in configs:

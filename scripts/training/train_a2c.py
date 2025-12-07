@@ -46,7 +46,7 @@ class A2CTrainer:
         max_grad_norm: float = 0.5,
 
         # Training config
-        num_episodes: int = 5000,
+        num_episodes: int = 3000,
         max_steps: int = 1000,
         rollout_steps: int = 5,  # A2C uses short rollouts (5-20 steps)
 
@@ -94,7 +94,7 @@ class A2CTrainer:
 
         # Create networks
         if state_representation == 'feature':
-            input_dim = 14 if use_flood_fill else 11
+            input_dim = 13 if use_flood_fill else 10
 
             self.actor = PPO_Actor_MLP(
                 input_dim=input_dim,

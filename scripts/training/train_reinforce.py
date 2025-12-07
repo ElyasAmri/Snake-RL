@@ -93,7 +93,7 @@ class REINFORCETrainer:
         max_grad_norm: float = 0.5,
 
         # Training config
-        num_episodes: int = 5000,
+        num_episodes: int = 3000,
         max_steps: int = 1000,
 
         # Other
@@ -138,7 +138,7 @@ class REINFORCETrainer:
 
         # Determine input/output dimensions
         if state_representation == 'feature':
-            input_dim = 14 if use_flood_fill else 11
+            input_dim = 13 if use_flood_fill else 10
         else:
             input_dim = grid_size
 
