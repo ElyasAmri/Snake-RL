@@ -18,7 +18,12 @@
 \usepackage{subcaption}
 \usepackage{algorithm}
 \usepackage{algpseudocode}
+\usepackage{tocloft}
 \usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc, fit}
+
+% Reduce TOC spacing to fit on fewer pages
+\setlength{\cftbeforesecskip}{2pt}
+\setlength{\cftbeforesubsecskip}{1pt}
 
 % Graphics path - figures are stored in results/figures
 \graphicspath{{../results/figures/}{figures/}}
@@ -89,16 +94,16 @@ Dr. Joseph Boutros\\[1.5cm]
 
 \end{titlepage}
 
-% Table of contents on separate page
+% Table of contents on separate page (reduced size by 20%)
 \setcounter{tocdepth}{2}
-\tableofcontents
+{\footnotesize\tableofcontents}
 \newpage
 
 %==============================================================================
 % ABSTRACT
 %==============================================================================
 \begin{abstract}
-TODO
+This report presents a systematic study of reinforcement learning applied to the Snake game, comparing value-based methods (DQN with Double, Dueling, PER, Noisy, and Rainbow variants) and policy gradient methods (REINFORCE, A2C, PPO). Our key finding is that state representation design dominates algorithm choice: flood-fill features that encode reachable free space improve average scores by 50-100\% over basic features (Rainbow DQN: 37.22 vs 16.21; PPO: 35.27 vs 17.69) by reducing entrapment deaths from 67-86\% to 45-49\%. Rainbow DQN achieves the highest scores with flood-fill features, while PPO offers competitive performance with simpler implementation. Feature-based representations also enable zero-shot generalization across grid sizes (8x8 to 20x20) without retraining. As an extension, we explore competitive two-snake training where DQN fails entirely due to non-stationarity, while PPO with curriculum learning produces balanced competition. Surprisingly, network capacity advantages reverse over training: larger networks dominate early (51\% vs 31\% at 2M steps) but smaller networks excel with extended training (42\% vs 33\% at 14M steps). We contribute CPU-vectorized environments achieving 40x speedup for single-snake training, a comprehensive algorithm comparison, and practical recommendations for state representation and algorithm selection in spatial planning domains.
 \end{abstract}
 
 %==============================================================================
@@ -159,63 +164,28 @@ where $R_{t+k+1}$ is the reward received at time step $t+k+1$. The discount fact
 \label{fig:mdp}
 \end{figure}
 
-\subsection{Policy Function}
+\subsection{Policy and Value Functions}
 
-A policy $\pi$ defines the agent's behavior by specifying which action to take in each state. Policies can be deterministic or stochastic:
+A policy $\pi$ defines the agent's behavior by specifying which action to take in each state. A deterministic policy $\pi: \mathcal{S} \rightarrow \mathcal{A}$ maps states directly to actions, while a stochastic policy $\pi(a|s)$ represents the probability of selecting action $a$ in state $s$. Stochastic policies enable exploration during learning and arise naturally in multi-agent settings where predictable behavior can be exploited.
 
-Deterministic policy: $\pi: \mathcal{S} \rightarrow \mathcal{A}$ maps states directly to actions. Given state $s$, the agent always takes action $a = \pi(s)$.
-
-Stochastic policy: $\pi(a|s)$ represents the probability of selecting action $a$ when in state $s$. The agent samples actions according to this distribution, enabling exploration of different behaviors.
-
-The choice between deterministic and stochastic policies has important implications. Stochastic policies are essential during learning to ensure exploration of the action space. They also arise naturally in multi-agent settings where predictable behavior can be exploited by opponents. However, for many single-agent tasks, the optimal policy is deterministic.
-
-\subsection{Value Function (State-Value)}
-
-The state-value function $V^\pi(s)$ estimates how good it is for an agent to be in a given state. It gives the expected return when starting in state $s$ and following policy $\pi$ thereafter:
+The state-value function $V^\pi(s)$ estimates the expected return when starting in state $s$ and following policy $\pi$:
 \begin{equation}
-V^\pi(s) = \mathbb{E}_\pi[G_t | s_t = s] = \mathbb{E}_\pi\left[\sum_{k=0}^{\infty} \gamma^k R_{t+k+1} \middle| s_t = s\right]
+V^\pi(s) = \mathbb{E}_\pi\left[\sum_{k=0}^{\infty} \gamma^k R_{t+k+1} \middle| s_t = s\right]
 \end{equation}
 
-The state-value function satisfies the Bellman equation:
-\begin{equation}
-V^\pi(s) = \sum_{a \in \mathcal{A}} \pi(a|s) \sum_{s' \in \mathcal{S}} P(s'|s,a)[R(s,a) + \gamma V^\pi(s')]
-\end{equation}
-
-The optimal state-value function is defined as the maximum value achievable over all policies:
-\begin{equation}
-V^*(s) = \max_\pi V^\pi(s)
-\end{equation}
-
-\subsection{Action-Value Function (Q-Function)}
-
-The action-value function (or Q-function) $Q^\pi(s,a)$ estimates how good it is to take a particular action in a given state. It gives the expected return when starting in state $s$, taking action $a$, and following policy $\pi$ thereafter:
+The action-value function $Q^\pi(s,a)$ estimates the expected return when starting in state $s$, taking action $a$, and following policy $\pi$ thereafter:
 \begin{equation}
 Q^\pi(s,a) = \mathbb{E}_\pi[G_t | s_t = s, a_t = a]
 \end{equation}
 
-The Q-function is particularly useful because it allows action selection without knowing the environment dynamics. Once we have the optimal Q-function $Q^*$, we can extract the optimal policy through:
+The Q-function is particularly useful because it allows action selection without knowing environment dynamics. The optimal policy can be extracted through $\pi^*(s) = \arg\max_{a} Q^*(s,a)$, where $Q^*$ satisfies the Bellman optimality equation:
 \begin{equation}
-\pi^*(s) = \arg\max_{a \in \mathcal{A}} Q^*(s,a)
+Q^*(s,a) = \sum_{s' \in \mathcal{S}} P(s'|s,a)\left[R(s,a) + \gamma \max_{a'} Q^*(s',a')\right]
 \end{equation}
 
-The optimal Q-function satisfies the Bellman optimality equation:
-\begin{equation}
-Q^*(s,a) = \sum_{s' \in \mathcal{S}} P(s'|s,a)\left[R(s,a) + \gamma \max_{a' \in \mathcal{A}} Q^*(s',a')\right]
-\end{equation}
+\subsection{Experience Replay and Off-Policy Learning}
 
-This greedy policy with respect to $Q^*$ is guaranteed to be optimal.
-
-\subsection{On-Policy vs Off-Policy Learning}
-
-A fundamental distinction in reinforcement learning is between on-policy and off-policy methods:
-
-On-policy methods learn the value of the policy being used to make decisions. The agent collects experience using its current policy and updates that same policy based on those experiences. Examples include SARSA, A2C, and PPO. On-policy methods are generally more stable but less sample-efficient, as each experience can only be used once before the policy changes.
-
-Off-policy methods learn the value of a different policy than the one being used to collect data. The agent follows a behavior policy (often exploratory) while learning about a target policy (often greedy). Examples include Q-learning and DQN. Off-policy methods can reuse past experiences through replay buffers, improving sample efficiency, but they can be less stable due to the distribution mismatch between behavior and target policies.
-
-We experiment with both paradigms: DQN (off-policy) uses experience replay to learn from stored transitions, while PPO (on-policy) learns directly from freshly collected rollouts.
-
-\subsection{Experience Replay}
+A fundamental distinction in reinforcement learning is between on-policy and off-policy methods. On-policy methods (e.g., PPO, A2C) learn from experiences collected by the current policy, offering stability but limited sample efficiency since each experience is used once. Off-policy methods (e.g., DQN) learn from experiences collected by any policy, enabling experience replay, which reuses past transitions multiple times. We experiment with both: DQN uses replay buffers while PPO learns from fresh rollouts.
 
 Experience replay is a critical technique that enables stable training in deep reinforcement learning. The key insight is that training a neural network on consecutive samples from an agent's trajectory creates two problems: (1) consecutive samples are highly correlated, violating the i.i.d. assumption of stochastic gradient descent, and (2) the data distribution shifts as the policy improves, causing catastrophic forgetting of previously learned behaviors.
 
@@ -223,9 +193,11 @@ When training directly on sequential experiences, the network sees a stream of h
 
 \begin{figure}[H]
 \centering
+\begin{subfigure}[b]{0.48\textwidth}
+\centering
 \begin{tikzpicture}[
-    node distance=0.8cm,
-    state/.style={circle, draw, minimum size=0.8cm, fill=red!20},
+    node distance=0.6cm,
+    state/.style={circle, draw, minimum size=0.7cm, fill=red!20, font=\small},
     arrow/.style={-{Stealth[length=2mm]}, thick},
     dashedarrow/.style={-{Stealth[length=2mm]}, thick, dashed}
 ]
@@ -242,7 +214,7 @@ When training directly on sequential experiences, the network sees a stream of h
     \draw[arrow] (s4) -- (s5);
 
     % Neural network
-    \node[rectangle, draw, fill=blue!10, minimum width=2cm, minimum height=1cm, below=1.5cm of s3] (nn) {Q-Network};
+    \node[rectangle, draw, fill=blue!10, minimum width=1.8cm, minimum height=0.8cm, below=1.2cm of s3, font=\small] (nn) {Q-Network};
 
     % Correlation indicator
     \draw[dashedarrow, red] (s1) -- (nn);
@@ -252,44 +224,47 @@ When training directly on sequential experiences, the network sees a stream of h
     \draw[dashedarrow, red] (s5) -- (nn);
 
 \end{tikzpicture}
-\caption{Without replay: sequential samples are correlated, causing training instability.}
+\caption{Without experience replay.}
 \label{fig:no_replay}
-\end{figure}
-
-Experience replay addresses these issues by storing transitions $(s_t, a_t, r_{t+1}, s_{t+1})$ in a buffer and sampling mini-batches uniformly at random for training. This breaks temporal correlations and provides a more stationary data distribution. The buffer acts as a memory that allows reusing past experiences multiple times, improving sample efficiency.
-
-\begin{figure}[H]
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
 \centering
 \begin{tikzpicture}[
-    node distance=0.6cm,
-    state/.style={circle, draw, minimum size=0.6cm, fill=green!20, font=\small},
+    node distance=0.5cm,
+    state/.style={circle, draw, minimum size=0.5cm, fill=green!20, font=\scriptsize},
     arrow/.style={-{Stealth[length=2mm]}, thick},
     dashedarrow/.style={-{Stealth[length=2mm]}, thick, dashed}
 ]
     % Replay buffer (cylinder-like)
-    \node[rectangle, draw, fill=yellow!20, minimum width=4cm, minimum height=2cm, rounded corners] (buffer) {};
+    \node[rectangle, draw, fill=yellow!20, minimum width=3.5cm, minimum height=1.8cm, rounded corners] (buffer) {};
     \node[above=0.1cm of buffer.north, font=\small\bfseries] {Replay Buffer};
 
     % States inside buffer (scattered)
-    \node[state] at (-1.2, 0.4) {$s_a$};
-    \node[state] at (0.3, 0.6) {$s_b$};
-    \node[state] at (1.2, 0.3) {$s_c$};
-    \node[state] at (-0.8, -0.3) {$s_d$};
-    \node[state] at (0.5, -0.5) {$s_e$};
-    \node[state] at (-0.2, 0.1) {$s_f$};
+    \node[state] at (-1.0, 0.35) {$s_a$};
+    \node[state] at (0.25, 0.5) {$s_b$};
+    \node[state] at (1.0, 0.25) {$s_c$};
+    \node[state] at (-0.7, -0.25) {$s_d$};
+    \node[state] at (0.4, -0.4) {$s_e$};
+    \node[state] at (-0.15, 0.08) {$s_f$};
 
     % Neural network
-    \node[rectangle, draw, fill=blue!10, minimum width=2cm, minimum height=1cm, below=2cm of buffer] (nn) {Q-Network};
+    \node[rectangle, draw, fill=blue!10, minimum width=1.8cm, minimum height=0.8cm, below=1.8cm of buffer, font=\small] (nn) {Q-Network};
 
     % Random sampling arrows
-    \draw[arrow, green!60!black] (-1.2, -0.8) -- ([xshift=-0.5cm]nn.north);
-    \draw[arrow, green!60!black] (0.5, -1.2) -- (nn.north);
-    \draw[arrow, green!60!black] (1.2, -0.8) -- ([xshift=0.5cm]nn.north);
+    \draw[arrow, green!60!black] (-1.0, -0.7) -- ([xshift=-0.4cm]nn.north);
+    \draw[arrow, green!60!black] (0.4, -1.0) -- (nn.north);
+    \draw[arrow, green!60!black] (1.0, -0.7) -- ([xshift=0.4cm]nn.north);
 
 \end{tikzpicture}
-\caption{With replay: random sampling from buffer decorrelates training data.}
+\caption{With experience replay.}
 \label{fig:with_replay}
+\end{subfigure}
+\caption{Experience replay comparison: (a) Sequential training causes correlated updates; (b) Random sampling from a buffer breaks correlations.}
+\label{fig:experience_replay}
 \end{figure}
+
+Experience replay addresses these issues by storing transitions $(s_t, a_t, r_{t+1}, s_{t+1})$ in a buffer and sampling mini-batches uniformly at random for training. This breaks temporal correlations and provides a more stationary data distribution. The buffer acts as a memory that allows reusing past experiences multiple times, improving sample efficiency.
 
 The replay buffer typically stores the most recent $N$ transitions (e.g., $N = 100,000$), discarding older experiences as new ones arrive. This ensures the buffer contains a diverse set of experiences while remaining bounded in memory.
 
@@ -345,7 +320,7 @@ Several improvements to the basic DQN algorithm have been proposed. Double DQN \
     \draw[arrow, dotted, thick] (qnet.east) -- ++(1.0, 0) |- node[right, font=\footnotesize, pos=0.25] {$\theta^- \leftarrow \theta$} (target.east);
 
 \end{tikzpicture}
-\caption{DQN training loop: experiences are stored in replay buffer, sampled for training, with target network providing stable Q-value targets.}
+\caption{DQN training loop.}
 \label{fig:dqn}
 \end{figure}
 
@@ -390,7 +365,7 @@ Actor-Critic methods combine value-based and policy-based approaches. The actor 
 A(s_t, a_t) \approx r_{t+1} + \gamma V(s_{t+1}) - V(s_t)
 \end{equation}
 
-Proximal Policy Optimization (PPO) \cite{schulman2017proximal} has become one of the most popular RL algorithms due to its simplicity and effectiveness. PPO constrains policy updates to prevent large, destabilizing changes using a clipped surrogate objective:
+Proximal Policy Optimization (PPO) \cite{schulman2017proximal} has become one of the most popular RL algorithms due to its simplicity and effectiveness. Building on Trust Region Policy Optimization (TRPO) \cite{schulman2015trust}, PPO constrains policy updates to prevent large, destabilizing changes using a clipped surrogate objective:
 \begin{equation}
 L^{CLIP}(\theta) = \mathbb{E}_t\left[\min\left(r_t(\theta)A_t, \text{clip}(r_t(\theta), 1-\epsilon, 1+\epsilon)A_t\right)\right]
 \end{equation}
@@ -427,7 +402,7 @@ where $\delta_t = r_t + \gamma V(s_{t+1}) - V(s_t)$ is the TD error and $\lambda
     \draw[arrow] (critic) -- (value);
 
 \end{tikzpicture}
-\caption{Actor-Critic architecture with shared layers, used in PPO and A2C.}
+\caption{Actor-Critic architecture.}
 \label{fig:actor_critic}
 \end{figure}
 
@@ -455,65 +430,13 @@ PPO & Clipped surrogate objective for stable updates & $L = \min(r_t A_t, \text{
 %==============================================================================
 \section{Implementation}
 
-This section describes our implementation of the Snake game environments and reinforcement learning infrastructure. We detail the code structure, GPU vectorization for efficient training, state representations, and action space design.
+This section describes our implementation of the Snake game environments and reinforcement learning infrastructure. We detail the environment design, state representations, network architectures, and training procedures.
 
 \subsection{Code Structure}
 
 Our implementation follows a modular architecture organized into several components. The \texttt{core/} directory contains core modules including environments, neural networks, state representations, and utilities. Training scripts for each algorithm (DQN, PPO, A2C) reside in \texttt{scripts/training/}, while \texttt{scripts/visualizer/} provides visualization and recording tools. The \texttt{results/} directory stores trained weights, training data, and generated figures.
 
 All environments follow the Gymnasium (OpenAI Gym) API standard, ensuring compatibility with standard RL libraries. The environment features a configurable grid (default $10 \times 10$) where the snake starts with length 3 at the center. Food appears randomly on empty cells, and episodes terminate upon collision with walls or the snake's body, or after a timeout of $2 \times \text{grid\_area}$ steps without collecting food.
-
-\subsection{Vectorized Environment Training}
-
-A key contribution of our implementation is vectorized environments using PyTorch tensors. Instead of running a single game sequentially, we run 128-256 simultaneous games in parallel. All game state (snake positions, food locations, directions) is stored as batched tensors, and game logic (collision detection, movement, reward computation) is implemented using vectorized tensor operations.
-
-This vectorization enables a \textbf{40$\times$ speedup} compared to sequential single-environment training by amortizing Python interpreter overhead. With 256 parallel environments on CPU, DQN achieves $\sim$4,800 episodes per minute compared to only $\sim$120 episodes/min with a single environment. For algorithms with higher computational cost per step (PPO with flood-fill features), speedups are more modest but still substantial at $\sim$4$\times$. Notably, for single-snake training with small neural networks (2-3 hidden layers, 128--256 units), all computation runs on CPU---GPU acceleration provides no benefit because the neural network operations are too small to overcome memory transfer overhead. The key speedup comes entirely from environment parallelization. Training 3,000 DQN episodes with basic features completes in under 1 minute, while 3,000 PPO episodes with flood-fill features takes approximately 27 minutes.
-
-\subsection{State Representations}
-
-State representation significantly impacts learning efficiency and final performance. We designed multiple representations with increasing sophistication, ranging from basic 10-dimensional feature vectors to comprehensive 24-dimensional representations.
-
-The simplest representation uses 10 dimensions capturing immediate spatial awareness. This includes three binary danger indicators for collision risk in relative directions (straight, right, left), four binary food direction indicators showing whether food lies up, right, down, or left relative to the head, and three one-hot encoded features representing the snake's current relative direction. This basic representation provides sufficient information for learning fundamental navigation skills.
-
-Building on this foundation, we developed a 13-dimensional representation that adds flood-fill features. These three additional features measure the ratio of reachable cells in each relative direction using a breadth-first traversal similar to BFS. By computing how much free space is accessible from potential next positions, the agent can avoid moves leading to dead-ends or self-trapping situations. The flood-fill computation normalizes values by the maximum possible free cells, producing features in the range [0, 1].
-
-Further extensions include a 19-dimensional selective representation that adds tail-related features (direction to tail and normalized distance), helping the snake follow its tail for safety in dense configurations. The most comprehensive 24-dimensional enhanced representation adds escape route counts, tail reachability via flood-fill, and snake length ratio. While providing rich information, this representation incurs higher computational cost that may not justify the marginal performance improvement.
-
-For CNN-based approaches, we use a grid representation with 3 channels encoding head position, body position, and food position respectively. This raw grid input requires convolutional layers to extract spatial features but provides complete spatial information without hand-crafted feature engineering.
-
-\begin{figure}[H]
-\centering
-\begin{tikzpicture}[
-    node distance=1cm,
-    box/.style={rectangle, draw, minimum width=2.2cm, minimum height=0.6cm, align=center, font=\small},
-    arrow/.style={-{Stealth[length=2mm]}, thick}
-]
-    % Horizontal flow: Game State -> Feature Encoder -> Neural Network -> Output
-    \node[box, fill=blue!10] (state) {Game State};
-    \node[box, fill=green!10, right=1.5cm of state] (encoder) {Feature Encoder};
-    \node[box, fill=purple!10, right=1.5cm of encoder] (network) {Neural Network};
-
-    % Q-value box (for DQN path)
-    \node[box, fill=orange!10, right=1.5cm of network, yshift=0.6cm] (qvalue) {$Q(s,a)$};
-
-    % Policy box (final output for both)
-    \node[box, fill=red!10, right=1.5cm of network, yshift=-0.6cm] (policy) {$\pi(a|s)$};
-
-    % Common path
-    \draw[arrow] (state) -- (encoder);
-    \draw[arrow] (encoder) -- (network);
-
-    % DQN path: NN -> Q -> pi (labeled)
-    \draw[arrow] (network) -- node[above, font=\scriptsize, sloped] {DQN} (qvalue);
-    \draw[arrow] (qvalue) -- (policy);
-
-    % PPO path: NN -> pi directly (labeled)
-    \draw[arrow] (network) -- node[below, font=\scriptsize, sloped] {PPO} (policy);
-
-\end{tikzpicture}
-\caption{State representation pipeline.}
-\label{fig:state_rep}
-\end{figure}
 
 \subsection{Environment Design}
 
@@ -598,6 +521,50 @@ Move away from food & $-1$ & Reward shaping (optional) \\
 
 The time penalty provides dense feedback encouraging efficient food collection rather than aimless wandering. Distance-based shaping accelerates early learning but is optional.
 
+\subsection{State Representations}
+
+State representation significantly impacts learning efficiency and final performance. We designed two representations with increasing sophistication: a basic 10-dimensional feature vector and a 13-dimensional representation with flood-fill features.
+
+The simplest representation uses 10 dimensions capturing immediate spatial awareness. This includes three binary danger indicators for collision risk in relative directions (straight, right, left), four binary food direction indicators showing whether food lies up, right, down, or left relative to the head, and three one-hot encoded features representing the snake's current relative direction. This basic representation provides sufficient information for learning fundamental navigation skills.
+
+Building on this foundation, we developed a 13-dimensional representation that adds flood-fill features. These three additional features measure the ratio of reachable cells in each relative direction using a breadth-first traversal similar to BFS. By computing how much free space is accessible from potential next positions, the agent can avoid moves leading to dead-ends or self-trapping situations. The flood-fill computation normalizes values by the maximum possible free cells, producing features in the range [0, 1].
+
+For CNN-based approaches, we use a grid representation with 3 channels encoding head position, body position, and food position respectively. This raw grid input requires convolutional layers to extract spatial features but provides complete spatial information without hand-crafted feature engineering.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    node distance=1cm,
+    box/.style={rectangle, draw, minimum width=2.2cm, minimum height=0.6cm, align=center, font=\small},
+    arrow/.style={-{Stealth[length=2mm]}, thick}
+]
+    % Horizontal flow: Game State -> Feature Encoder -> Neural Network -> Output
+    \node[box, fill=blue!10] (state) {Game State};
+    \node[box, fill=green!10, right=1.5cm of state] (encoder) {Feature Encoder};
+    \node[box, fill=purple!10, right=1.5cm of encoder] (network) {Neural Network};
+
+    % Q-value box (for DQN path)
+    \node[box, fill=orange!10, right=1.5cm of network, yshift=0.6cm] (qvalue) {$Q(s,a)$};
+
+    % Policy box (final output for both)
+    \node[box, fill=red!10, right=1.5cm of network, yshift=-0.6cm] (policy) {$\pi(a|s)$};
+
+    % Common path
+    \draw[arrow] (state) -- (encoder);
+    \draw[arrow] (encoder) -- (network);
+
+    % DQN path: NN -> Q -> pi (labeled)
+    \draw[arrow] (network) -- node[above, font=\scriptsize, sloped] {DQN} (qvalue);
+    \draw[arrow] (qvalue) -- (policy);
+
+    % PPO path: NN -> pi directly (labeled)
+    \draw[arrow] (network) -- node[below, font=\scriptsize, sloped] {PPO} (policy);
+
+\end{tikzpicture}
+\caption{State representation pipeline.}
+\label{fig:state_rep}
+\end{figure}
+
 \subsection{Network Architectures}
 
 We implement two network architectures: MLP for feature-based inputs and CNN for grid-based inputs.
@@ -659,6 +626,12 @@ Although CNNs are well-suited for spatial feature detection and could theoretica
 
 PPO uses separate actor and critic networks, or a shared backbone with separate heads. The actor outputs action logits processed through softmax for action probabilities. The critic outputs a single scalar value estimate.
 
+\subsection{Vectorized Environment Training}
+
+A key contribution of our implementation is vectorized environments using PyTorch tensors. Instead of running a single game sequentially, we run 128-256 simultaneous games in parallel. All game state (snake positions, food locations, directions) is stored as batched tensors, and game logic (collision detection, movement, reward computation) is implemented using vectorized tensor operations.
+
+This vectorization enables a 40$\times$ speedup compared to sequential single-environment training by amortizing Python interpreter overhead. With 256 parallel environments on CPU, DQN achieves $\sim$4,800 episodes per minute compared to only $\sim$120 episodes/min with a single environment. For algorithms with higher computational cost per step (PPO with flood-fill features), speedups are more modest but still substantial at $\sim$4$\times$. Notably, for single-snake training with small neural networks (2-3 hidden layers, 128--256 units), all computation runs on CPU; GPU acceleration provides no benefit because the neural network operations are too small to overcome memory transfer overhead. The key speedup comes entirely from environment parallelization. Training 3,000 DQN episodes with basic features completes in under 1 minute, while 3,000 PPO episodes with flood-fill features takes approximately 27 minutes.
+
 \subsection{Training Procedures}
 
 We implemented training scripts for all algorithms with consistent interfaces and configurable hyperparameters. Table \ref{tab:hyperparameters} summarizes key hyperparameters.
@@ -686,18 +659,16 @@ Target update freq & 1,000 steps & N/A \\
 \end{tabular}
 \end{table}
 
-For DQN variants, we train for 5,000-10,000 episodes with 256 parallel environments. Training uses Adam optimizer with gradient clipping (max norm 1.0). The replay buffer stores transitions and samples uniformly (or by priority for PER). The target network updates every 1,000 training steps.
+For DQN variants, we train for 3,000 episodes with 256 parallel environments. Training uses Adam optimizer with gradient clipping (max norm 1.0). The replay buffer stores transitions and samples uniformly (or by priority for PER). The target network updates every 1,000 training steps.
 
 For policy gradient methods, we collect rollouts of 2,048 steps across parallel environments, then perform multiple epochs (4-10) of mini-batch updates. PPO uses the clipped objective with value function and entropy bonuses. A2C uses simpler advantage estimation without clipping.
-
-For two-snake curriculum training, we progress through five stages with increasing opponent difficulty (see Table \ref{tab:curriculum_stages}). Stages 0-3 train each network size independently: static (95\% threshold), random (95\%), greedy (35\%), and frozen self-play (90\%). Stage 4 performs cross-size co-evolution where the 128x128 and 256x256 networks compete against each other while both continue learning.
 
 %==============================================================================
 % SECTION 4: EXPERIMENTS
 %==============================================================================
 \section{Experiments}
 
-This section presents our experimental results, organized to demonstrate the progression of our investigation. We begin with vanilla implementations of DQN and PPO, then explore DQN variants and advanced algorithms. We investigate death causes to understand failure modes, introduce flood-fill features as a solution, study reward system modifications, and demonstrate grid size generalization. Finally, we present results from the competitive two-snake environment. Appendix~\ref{app:algorithm_comparison} provides comprehensive results for all nine algorithms.
+This section presents our experimental results, organized to demonstrate the progression of our investigation. We begin with vanilla implementations of DQN and PPO, then explore DQN variants. We investigate death causes to understand failure modes, first attempt reward system modifications, then introduce flood-fill features as the comprehensive solution. We demonstrate grid size generalization and finally present results from the competitive two-snake environment. Appendix~\ref{app:algorithm_comparison} provides comprehensive results for all nine algorithms.
 
 \subsection{Vanilla DQN and PPO}
 
@@ -710,14 +681,14 @@ We first establish baseline performance with standard implementations of DQN and
 \begin{subfigure}[b]{0.48\textwidth}
 \centering
 \includegraphics[width=\textwidth]{dqn_basic_scores.png}
-\caption{DQN: 16-17 avg, 31 max score.}
+\caption{DQN training curve.}
 \label{fig:dqn_results}
 \end{subfigure}
 \hfill
 \begin{subfigure}[b]{0.48\textwidth}
 \centering
 \includegraphics[width=\textwidth]{ppo_basic_scores.png}
-\caption{PPO: 17-18 avg, 43 max score.}
+\caption{PPO training curve.}
 \label{fig:ppo_results}
 \end{subfigure}
 \caption{Training with basic features.}
@@ -745,21 +716,47 @@ Understanding why agents die provides insight into failure modes. We categorize 
 \begin{subfigure}[b]{0.48\textwidth}
 \centering
 \includegraphics[width=\textwidth]{dqn_basic_deaths.png}
-\caption{DQN: entrapment dominates (67\%), wall 21\%, self 12\%.}
+\caption{DQN death causes.}
 \label{fig:dqn_deaths}
 \end{subfigure}
 \hfill
 \begin{subfigure}[b]{0.48\textwidth}
 \centering
 \includegraphics[width=\textwidth]{ppo_basic_deaths.png}
-\caption{PPO: entrapment dominates (86\%), wall 7\%, self 7\%.}
+\caption{PPO death causes.}
 \label{fig:ppo_deaths}
 \end{subfigure}
 \caption{Death causes with basic features.}
 \label{fig:basic_deaths}
 \end{figure}
 
-With basic features, entrapment is the dominant death cause at 67-86\% of deaths, indicating that agents without spatial awareness frequently maneuver into positions from which escape is impossible. Notably, PPO's wall and self-collision curves flatten toward the end of training, indicating the agent has essentially learned to avoid these immediate dangers completely, yet it still dies frequently from entrapment, which requires longer-term spatial planning. This motivates the flood-fill feature engineering described in the next section.
+With basic features, entrapment is the dominant death cause at 67-86\% of deaths, indicating that agents without spatial awareness frequently maneuver into positions from which escape is impossible. Notably, PPO's wall and self-collision curves flatten toward the end of training, indicating the agent has essentially learned to avoid these immediate dangers completely, yet it still dies frequently from entrapment, which requires longer-term spatial planning.
+
+\subsection{Reward System Modification}
+
+Before investigating feature engineering, we first explored whether reward design could reduce deaths. Specifically, we studied the death penalty hyperparameter with basic features, testing values from -10 to -100. This parameter controls how strongly the agent is penalized for dying, potentially affecting the exploration-exploitation trade-off and learned risk tolerance.
+
+Table \ref{tab:ppo_penalty_basic} shows PPO results across death penalties with basic features. The penalty has moderate impact, with all values producing similar average scores in the 18-20 range. The best performance (-100 penalty) achieves 19.93 average, only marginally better than the baseline -10 penalty (19.48).
+
+\begin{table}[H]
+\centering
+\caption{PPO Death Penalty Study with Basic Features}
+\label{tab:ppo_penalty_basic}
+\begin{tabular}{ccc}
+\toprule
+\textbf{Death Penalty} & \textbf{Avg Score} & \textbf{Max Score} \\
+\midrule
+-10 & 19.48 & \textbf{45} \\
+-20 & 18.40 & \textbf{45} \\
+-30 & 18.25 & 40 \\
+-40 & 19.30 & 41 \\
+-50 & 19.25 & 40 \\
+-100 & \textbf{19.93} & 39 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The limited impact of reward tuning on performance suggests that the fundamental limitation lies in state representation, not reward design. The agent cannot avoid entrapment regardless of how heavily death is penalized because it lacks the spatial awareness to perceive dead-ends. This motivates the flood-fill feature engineering described in the next section.
 
 \subsection{Flood-Fill Feature Engineering}
 
@@ -772,21 +769,21 @@ The flood-fill feature gives the agent spatial awareness about reachable free sp
 \begin{subfigure}[b]{0.48\textwidth}
 \centering
 \includegraphics[width=\textwidth]{dqn_flood-fill_scores.png}
-\caption{DQN: 25 avg, 47 max score.}
+\caption{DQN training curve.}
 \label{fig:dqn_flood}
 \end{subfigure}
 \hfill
 \begin{subfigure}[b]{0.48\textwidth}
 \centering
 \includegraphics[width=\textwidth]{ppo_flood-fill_scores.png}
-\caption{PPO: 35 avg, 56 max score.}
+\caption{PPO training curve.}
 \label{fig:ppo_flood}
 \end{subfigure}
 \caption{Training with flood-fill features.}
 \label{fig:flood_training}
 \end{figure}
 
-Table \ref{tab:representation_comparison} compares performance with and without flood-fill features. The flood-fill representation improves average scores by 46\% for DQN and 102\% for PPO, representing the single most impactful improvement in our experiments.
+Table \ref{tab:representation_comparison} compares performance with and without flood-fill features. The flood-fill representation improves average scores by 52\% for DQN and 99\% for PPO, representing the single most impactful improvement in our experiments.
 
 \begin{table}[H]
 \centering
@@ -796,10 +793,10 @@ Table \ref{tab:representation_comparison} compares performance with and without 
 \toprule
 \textbf{Algorithm} & \textbf{Features} & \textbf{Avg Score} & \textbf{Std} & \textbf{Max} & \textbf{Entrap \%} \\
 \midrule
-DQN & Basic & 16.78 & 6.91 & 31 & 67\% \\
-DQN & Flood-fill & 25.44 & 10.98 & 47 & 45\% \\
+DQN & Basic & 16.78 & 6.91 & 43 & 67\% \\
+DQN & Flood-fill & 25.44 & 10.98 & 51 & 45\% \\
 PPO & Basic & 17.69 & 5.80 & 43 & 86\% \\
-PPO & Flood-fill & 35.27 & 6.65 & 56 & 49\% \\
+PPO & Flood-fill & 35.27 & 6.65 & 58 & 49\% \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -811,55 +808,47 @@ With flood-fill, entrapment drops from 67-86\% to 45-49\% of deaths, explaining 
 \begin{subfigure}[b]{0.48\textwidth}
 \centering
 \includegraphics[width=\textwidth]{dqn_flood-fill_deaths.png}
-\caption{DQN: entrapment reduced to 45\%.}
+\caption{DQN death causes.}
 \label{fig:dqn_flood_deaths}
 \end{subfigure}
 \hfill
 \begin{subfigure}[b]{0.48\textwidth}
 \centering
 \includegraphics[width=\textwidth]{ppo_flood-fill_deaths.png}
-\caption{PPO: entrapment reduced to 49\%.}
+\caption{PPO death causes.}
 \label{fig:ppo_flood_deaths}
 \end{subfigure}
 \caption{Death causes with flood-fill features.}
 \label{fig:flood_deaths}
 \end{figure}
 
-An unexpected observation from the flood-fill experiments is the reintroduction of wall and self-collision deaths. With basic features, entrapment dominated (67-84\% of deaths), but with flood-fill, wall and self-collisions become more prominent again. This suggests that while flood-fill successfully addresses spatial awareness for avoiding dead-ends, the agent may become overconfident in tight spaces or take riskier paths. This motivated our investigation into reward system modifications to further reduce these preventable deaths.
+An unexpected observation from the flood-fill experiments is the reintroduction of wall and self-collision deaths. With basic features, entrapment dominated (67-86\% of deaths), but with flood-fill, wall and self-collisions become more prominent again. This suggests that while flood-fill successfully addresses spatial awareness for avoiding dead-ends, the agent may become overconfident in tight spaces or take riskier paths.
 
-\subsection{Reward System Modification}
-
-We investigated whether reward engineering could reduce deaths beyond what flood-fill achieves. Specifically, we studied the death penalty hyperparameter, testing values from -10 to -100. This parameter controls how strongly the agent is penalized for dying, potentially affecting the exploration-exploitation trade-off and learned risk tolerance.
-
-Table \ref{tab:ppo_penalty} shows PPO results across death penalties for both feature sets. With basic features, the penalty has moderate impact, with all values producing similar average scores in the 18-20 range. With flood-fill features, scores are consistently higher, with the -100 penalty producing the best average score of 39.74.
+We also investigated whether reward tuning could further improve flood-fill performance. Table \ref{tab:ppo_penalty_flood} shows PPO results across death penalties with flood-fill features. The -100 penalty produces the best average score of 39.74, a modest improvement over the baseline -10 penalty (35.08). Combined with our earlier basic feature results (Table \ref{tab:ppo_penalty_basic}), this confirms that state representation has a larger impact than reward tuning: switching from basic to flood-fill features provides an 18-point improvement, while penalty tuning yields at most 4-5 points.
 
 \begin{table}[H]
 \centering
-\caption{PPO Death Penalty Study: Basic vs Flood-fill Features}
-\label{tab:ppo_penalty}
-\begin{tabular}{ccccc}
+\caption{PPO Death Penalty Study with Flood-fill Features}
+\label{tab:ppo_penalty_flood}
+\begin{tabular}{ccc}
 \toprule
- & \multicolumn{2}{c}{\textbf{Basic Features}} & \multicolumn{2}{c}{\textbf{Flood-fill Features}} \\
-\cmidrule(lr){2-3} \cmidrule(lr){4-5}
-\textbf{Death Penalty} & \textbf{Avg} & \textbf{Max} & \textbf{Avg} & \textbf{Max} \\
+\textbf{Death Penalty} & \textbf{Avg Score} & \textbf{Max Score} \\
 \midrule
--10 & 19.48 & \textbf{45} & 35.08 & 59 \\
--20 & 18.40 & \textbf{45} & 35.91 & 60 \\
--30 & 18.25 & 40 & 36.98 & \textbf{64} \\
--40 & 19.30 & 41 & 37.52 & 59 \\
--50 & 19.25 & 40 & 36.76 & 58 \\
--100 & \textbf{19.93} & 39 & \textbf{39.74} & 56 \\
+-10 & 35.27 & 58 \\
+-20 & 35.91 & 60 \\
+-30 & 36.98 & \textbf{64} \\
+-40 & 37.52 & 59 \\
+-50 & 36.76 & 58 \\
+-100 & \textbf{39.74} & 56 \\
 \bottomrule
 \end{tabular}
 \end{table}
-
-The death penalty has less impact than state representation. Across all tested values, the difference in average score is at most 4-5 points, while switching from basic to flood-fill features provides an 18-point improvement. This suggests that investing effort in state representation design yields greater returns than hyperparameter tuning.
 
 \subsection{Grid Size Generalization}
 
 A key advantage of our feature-based state representation is grid-size independence. Because the features encode relative spatial information (danger indicators, food direction, flood-fill ratios) rather than absolute positions, an agent trained on a $10 \times 10$ grid can generalize to larger or smaller grids without retraining.
 
-To validate this, we trained a DQN agent with flood-fill features on a $10 \times 10$ grid for 5,000 episodes, then evaluated its performance on $8 \times 8$, $10 \times 10$, $15 \times 15$, and $20 \times 20$ grids without any additional training. Table \ref{tab:grid_generalization} summarizes the results.
+To validate this, we trained a DQN agent with flood-fill features on a $10 \times 10$ grid for 3,000 episodes, then evaluated its performance on $8 \times 8$, $10 \times 10$, $15 \times 15$, and $20 \times 20$ grids without any additional training. Table \ref{tab:grid_generalization} summarizes the results.
 
 \begin{table}[H]
 \centering
@@ -869,10 +858,10 @@ To validate this, we trained a DQN agent with flood-fill features on a $10 \time
 \toprule
 \textbf{Grid Size} & \textbf{Avg Score} & \textbf{Max Score} & \textbf{Theoretical Max} & \textbf{\% of Max} \\
 \midrule
-$8 \times 8$ & 25.1 & 39 & 61 & 41.2\% \\
-$10 \times 10$ (trained) & 34.8 & 54 & 97 & 35.9\% \\
-$15 \times 15$ & 57.1 & 72 & 222 & 25.7\% \\
-$20 \times 20$ & 55.2 & 71 & 397 & 13.9\% \\
+$8 \times 8$ & 20.0 & 34 & 61 & 32.8\% \\
+$10 \times 10$ (trained) & 26.4 & 42 & 97 & 27.2\% \\
+$15 \times 15$ & 45.1 & 68 & 222 & 20.3\% \\
+$20 \times 20$ & 52.3 & 64 & 397 & 13.2\% \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -896,7 +885,7 @@ For competitive scenarios, we designed a 33-dimensional state representation wit
 
 We investigate whether larger networks produce better competitive agents by training two agents with different network capacities: a Big network with 256x256 hidden layers (131,000+ parameters) and a Small network with 128x128 hidden layers (33,000+ parameters). The hypothesis is that competitive scenarios require more representational capacity to model opponent behavior, strategic planning, and multi-objective optimization (food collection vs. survival vs. blocking opponent).
 
-Competitive multi-agent RL introduces several challenges absent in single-agent settings. Non-stationarity arises because the opponent's policy changes during training, violating the stationarity assumption of most RL algorithms. Credit assignment becomes difficult: when one snake dies, it is unclear whether this resulted from its own mistake or the opponent's skill. Reward design must balance food collection, survival, and competitive objectives. Finally, exploration collapse can occur when both agents converge to avoiding each other rather than competing.
+Competitive multi-agent RL introduces several challenges absent in single-agent settings \cite{lowe2017multi}. Non-stationarity arises because the opponent's policy changes during training, violating the stationarity assumption of most RL algorithms. Credit assignment becomes difficult: when one snake dies, it is unclear whether this resulted from its own mistake or the opponent's skill. Reward design must balance food collection, survival, and competitive objectives. Finally, exploration collapse can occur when both agents converge to avoiding each other rather than competing.
 
 Unlike single-snake training where GPU acceleration provides no benefit, competitive two-snake training benefits significantly from GPU computation. Training two neural networks simultaneously with larger PPO rollout batches creates sufficient computational load to overcome GPU memory transfer overhead. Our benchmarks show PPO two-snake training achieves 4.8$\times$ speedup on GPU (1,615 steps/second) compared to CPU (333 steps/second). DQN shows no GPU benefit even in two-snake scenarios due to its smaller batch sizes from experience replay sampling.
 
@@ -909,14 +898,14 @@ The failure occurs because early in training, random policies cause frequent col
 \begin{subfigure}[b]{0.48\textwidth}
 \centering
 \includegraphics[width=\textwidth]{curriculum_128x128_stages.png}
-\caption{Curriculum stages for 128x128 network.}
+\caption{128x128 network.}
 \label{fig:curriculum_128}
 \end{subfigure}
 \hfill
 \begin{subfigure}[b]{0.48\textwidth}
 \centering
 \includegraphics[width=\textwidth]{curriculum_256x256_stages.png}
-\caption{Curriculum stages for 256x256 network.}
+\caption{256x256 network.}
 \label{fig:curriculum_256}
 \end{subfigure}
 \caption{Curriculum learning progression.}
@@ -949,21 +938,21 @@ The frozen opponent in Stage 3 is a snapshot of the agent's own policy from the 
 \begin{subfigure}[b]{0.48\textwidth}
 \centering
 \includegraphics[width=\textwidth]{ppo_direct_coevolution_14M.png}
-\caption{Direct co-evolution (14M steps).}
+\caption{Direct co-evolution.}
 \label{fig:ppo_direct_coevo}
 \end{subfigure}
 \hfill
 \begin{subfigure}[b]{0.48\textwidth}
 \centering
 \includegraphics[width=\textwidth]{coevolution_comparison.png}
-\caption{Curriculum co-evolution (Stage 4).}
+\caption{Curriculum co-evolution.}
 \label{fig:curriculum_coevo}
 \end{subfigure}
 \caption{Co-evolution training.}
 \label{fig:coevolution_comparison}
 \end{figure}
 
-After training, we evaluate each approach by running 1,000 head-to-head games between the Big (256x256) and Small (128x128) networks. Games are played on a 20x20 grid with target food count of 10. \textbf{Winning requires being the first to collect 10 food items}---if a snake dies before either reaches the target (collision with wall, self, or opponent), the game ends in a draw. This scoring mechanism rewards food collection over aggressive play, as eliminating the opponent does not count as a victory. We compare three training approaches: DQN direct co-evolution (2M steps), PPO direct co-evolution (14M steps to match curriculum total), and PPO with curriculum learning (6M stages + 8M co-evolution = 14M total).
+After training, we evaluate each approach by running 1,000 head-to-head games between the Big (256x256) and Small (128x128) networks. Games are played on a 20x20 grid with target food count of 10. Winning requires being the first to collect 10 food items; if a snake dies before either reaches the target (collision with wall, self, or opponent), the game ends in a draw. This scoring mechanism rewards food collection over aggressive play, as eliminating the opponent does not count as a victory. We compare three training approaches: DQN direct co-evolution (2M steps), PPO direct co-evolution (14M steps to match curriculum total), and PPO with curriculum learning (6M stages + 8M co-evolution = 14M total).
 
 \begin{figure}[H]
 \centering
@@ -996,7 +985,7 @@ DQN co-evolution completely fails, achieving a 100\% draw rate with near-zero fo
 
 PPO direct co-evolution at 2M steps shows strong performance with the larger 256x256 network dominating at 51\% win rate versus only 31\% for the 128x128 network. Both networks achieve high average scores (7.8 vs 6.7), indicating they learned effective food collection alongside competitive behavior.
 
-PPO direct co-evolution at 14M steps reveals a surprising reversal: the smaller 128x128 network catches up and surpasses the larger network (42\% vs 33\% win rate). This suggests that with extended training, the smaller network develops more robust strategies while the larger network may overfit to specific opponent patterns.
+PPO direct co-evolution at 14M steps reveals a surprising reversal: the smaller 128x128 network catches up and surpasses the larger network (128x128 wins 42\% vs 256x256 wins 33\%). This suggests that with extended training, the smaller network develops more robust strategies while the larger network may overfit to specific opponent patterns.
 
 PPO curriculum learning produces the most balanced competition (40\% vs 38\% win rates) with comparable scores (7.2 vs 7.3). The curriculum approach prevents either network from gaining a decisive advantage, resulting in more competitive matches.
 
@@ -1007,91 +996,91 @@ In summary, DQN co-evolution fails completely due to non-stationarity violating 
 %==============================================================================
 \section{Discussion}
 
-This section synthesizes key insights from our experiments.
+\subsection{State Representation and the Entrapment Problem}
 
-\subsection{Why State Representation Matters More Than Algorithms}
+Our most striking finding is the dominance of state representation over algorithm choice. Switching from basic to flood-fill features provides an 18-point improvement for PPO, while the gap between the best algorithm (PPO at 17.69) and worst successful algorithm (Double DQN at 14.23) is only about 3 points with identical features. Similarly, death penalty tuning yields at most 4-5 point variation. This hierarchy (representation over algorithm over hyperparameters) suggests that for spatial planning problems, engineering effort should prioritize state design.
 
-Our most striking finding is the dominance of state representation over algorithm choice. Switching from basic to flood-fill features provides an 18-point improvement, while the best algorithm (PPO) only outperforms the worst (standard DQN) by 4 points with identical features. Similarly, death penalty tuning yields at most 4-5 point variation. This hierarchy---representation over algorithm over hyperparameters---suggests that for spatial planning problems, engineering effort should prioritize state design.
+Death cause analysis reveals that 67-86\% of failures with basic features stem from self-entrapment, a strategic error rather than a tactical one. The snake navigates correctly but plans poorly. The flood-fill feature succeeds because it directly encodes the information needed to solve this failure mode, transforming global path information into an observable quantity. Flood-fill reduces entrapment to 45-49\%, with wall and self-collision deaths increasing proportionally: a shift from strategic to tactical deaths indicating a qualitatively different learned policy.
 
-The flood-fill feature succeeds because it directly encodes the information needed to solve the primary failure mode: entrapment. Basic features provide local obstacle detection but no global path information, leaving agents blind to dead-ends until trapped. Flood-fill transforms this into an observable quantity, enabling preemptive avoidance.
+This insight has implications for reward design. Our death penalty study shows that penalizing deaths more heavily does not reduce entrapment; the agent cannot avoid what it cannot perceive. Differential penalties based on death type could encourage agents to take calculated risks rather than accepting entrapment passively.
 
-\subsection{The Entrapment Problem}
+\subsection{Insights from Multi-Agent Training}
 
-Death cause analysis reveals that 67-86\% of failures with basic features stem from self-entrapment---a strategic error, not a tactical one. The snake navigates correctly but plans poorly. Flood-fill reduces entrapment to 45-49\%, with wall and self-collision deaths increasing proportionally. This shift from strategic to tactical deaths indicates a qualitatively different learned policy: one that maintains escape routes rather than greedily pursuing food.
+Our results reveal a nuanced relationship between network capacity and competitive performance. At 2M training steps, the larger 256x256 network dominates (51\% vs 31\% win rate), suggesting initial capacity advantages. However, with extended training at 14M steps, this reverses dramatically: the smaller 128x128 network achieves 42\% vs 33\% win rate. This challenges the assumption that more capacity is always beneficial and suggests two mechanisms:
 
-This insight has implications for reward design. Our death penalty study shows that penalizing deaths more heavily does not reduce entrapment---the agent cannot avoid what it cannot perceive. Differential penalties based on death type (higher for avoidable tactical errors, lower for strategic entrapment) could encourage agents to take calculated risks in confined spaces rather than accepting entrapment passively.
-
-\subsection{Why Larger Networks Can Fail in Competition}
-
-Our results reveal a nuanced relationship between network capacity and competitive performance. At 2M training steps, the larger 256x256 network dominates (51\% vs 31\% win rate), suggesting initial capacity advantages. However, with extended training at 14M steps, this reverses dramatically---the smaller 128x128 network achieves 42\% vs 33\% win rate. This challenges the assumption that more capacity is always beneficial and suggests two mechanisms:
-
-Overfitting to opponent dynamics: Larger networks may memorize opponent-specific patterns that become obsolete as the opponent's policy evolves, while smaller networks learn more generalizable strategies. The reversal between 2M and 14M steps supports this---the larger network's early advantage disappears as its specialized strategies become exploitable.
+Overfitting to opponent dynamics: Larger networks may memorize opponent-specific patterns that become obsolete as the opponent's policy evolves, while smaller networks learn more generalizable strategies. The reversal between 2M and 14M steps supports this; the larger network's early advantage disappears as its specialized strategies become exploitable.
 
 Co-adaptation instability: With more parameters, both networks can develop increasingly complex counter-strategies, leading to an arms race that destabilizes learning. Smaller networks may converge to simpler, more stable equilibria.
 
 Curriculum learning produces the most balanced outcome (40\% vs 38\%), preventing either network from developing exploitable specializations. By providing stable, non-adapting opponents during early training, the curriculum approach allows both networks to develop fundamental skills before facing adaptive opponents.
 
-\subsection{Lessons for Multi-Agent RL}
-
-DQN's complete failure in competitive settings (100\% draws) versus PPO's success (18-26\% draws) highlights a fundamental limitation of value-based methods in non-stationary environments. Q-learning assumes a stationary MDP, but competitive training violates this assumption as opponent policies change. PPO's on-policy updates better handle this non-stationarity, enabling both food collection and competitive play.
-
-Credit assignment in competitive scenarios remains an open challenge. When one snake dies, attributing this to self-error versus opponent skill is inherently ambiguous. Curriculum learning partially addresses this by starting with deterministic opponents where credit assignment is unambiguous, gradually introducing complexity as the agent develops competence.
+DQN's complete failure in competitive settings (100\% draws) versus PPO's success (18-26\% draws) highlights a fundamental limitation of value-based methods in non-stationary environments. Q-learning assumes a stationary MDP, but competitive training violates this assumption as opponent policies change. PPO's on-policy updates better handle this non-stationarity. Credit assignment remains challenging: when one snake dies, attributing this to self-error versus opponent skill is inherently ambiguous. Curriculum learning partially addresses this by starting with deterministic opponents where credit assignment is unambiguous.
 
 %==============================================================================
 % SECTION 6: CONCLUSION
 %==============================================================================
 \section{Conclusion}
 
+Our key findings are threefold: (1) flood-fill features dramatically reduce entrapment deaths and boost performance by 50-100\% over basic features, (2) Rainbow DQN achieves the highest scores but PPO offers competitive performance with simpler implementation, and (3) competitive multi-agent training exhibits complex dynamics where network capacity advantages depend on training duration. Larger networks dominate early (51\% vs 31\% at 2M steps) but smaller networks excel with extended training (42\% vs 33\% at 14M steps), while curriculum learning produces balanced competition (40\% vs 38\%).
+
 This project comprehensively investigated reinforcement learning techniques applied to the Snake game. We implemented multiple algorithms spanning value-based methods (DQN with Double, Dueling, PER, Noisy, and Rainbow variants) and policy gradient methods (REINFORCE, A2C, PPO), evaluated them in both single-snake and competitive two-snake scenarios, and identified key factors affecting performance.
 
-Our main contributions include implementing GPU-accelerated vectorized environments for efficient parallel training, designing and comparing multiple state representations with flood-fill features proving most impactful, demonstrating that PPO achieves the best performance both with basic features (17.69 avg score) and flood-fill features (35.27 avg score), developing effective curriculum learning strategies for competitive two-snake training, and providing practical recommendations for algorithm and representation selection.
+Our main contributions include implementing CPU-vectorized environments for efficient parallel training, designing and comparing multiple state representations with flood-fill features proving most impactful, demonstrating that PPO achieves the best performance with basic features (17.69 avg score) while Rainbow DQN leads with flood-fill features (37.22 avg score), developing effective curriculum learning strategies for competitive two-snake training, and providing practical recommendations for algorithm and representation selection.
 
 \subsection{Limitations}
+\label{sec:limitations}
 
 Despite achieving reasonable performance, our approach faces fundamental limitations inherent to deep reinforcement learning. Alex Irpan's influential essay ``Deep Reinforcement Learning Doesn't Work Yet'' \cite{irpan2018deep} identifies several key challenges that directly apply to our work.
 
-Irpan argues that deep RL is ``tremendously expensive in data,'' requiring far more experience than humans need to learn comparable tasks. As shown in \textbf{Figure \ref{fig:sample_inefficiency}}, Rainbow DQN---one of the most sample-efficient model-free methods---requires approximately 18 million frames (83 hours of gameplay) to reach human-level Atari performance, while humans master these games in minutes. Earlier methods like Nature DQN required 200 million frames without reaching comparable performance. Our Snake agents face the same challenge: while GPU vectorization accelerates experience collection, the underlying sample complexity remains high.
+Irpan argues that deep RL is ``tremendously expensive in data,'' requiring far more experience than humans need to learn comparable tasks. As shown in \textbf{Figure \ref{fig:sample_inefficiency}}, Rainbow DQN, one of the most sample-efficient model-free methods, requires approximately 18 million frames (83 hours of gameplay) to reach human-level Atari performance, while humans master these games in minutes. Earlier methods like Nature DQN required 200 million frames without reaching comparable performance. Our Snake agents face the same challenge: while GPU vectorization accelerates experience collection, the underlying sample complexity remains high. In our experiments, A2C and REINFORCE fail to learn within 3,000 episodes where DQN and PPO succeed, suggesting they may require significantly more training time or careful hyperparameter tuning.
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.5\textwidth]{sample_inefficiency.png}
-\caption{Sample inefficiency in deep RL \cite{irpan2018deep}.}
+\caption{Sample inefficiency in deep RL.}
 \label{fig:sample_inefficiency}
+\end{figure}
+
+We verified this experimentally by training A2C and REINFORCE for 10,000 episodes, over three times the standard 3,000 episodes. As shown in \textbf{Figure \ref{fig:extended_training}}, A2C eventually reaches an average score of 13.77 (max 30), showing that it can learn given sufficient experience. However, REINFORCE fails to learn entirely, plateauing at an average score of 0.15 (max 3) even after 10,000 episodes. For comparison, PPO achieves an average score of approximately 18 in just 3,000 episodes, demonstrating a 7-10$\times$ sample efficiency advantage over A2C and highlighting why algorithm choice critically impacts practical training feasibility.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.5\textwidth]{extended_training_a2c_reinforce.png}
+\caption{Extended training: A2C vs REINFORCE.}
+\label{fig:extended_training}
 \end{figure}
 
 Irpan also emphasizes that deep RL results are notoriously sensitive to random seeds and hyperparameters. \textbf{Figure \ref{fig:pendulum_variance}} illustrates this on the simple Pendulum task: with identical hyperparameters, 3 out of 10 runs fail to learn entirely, while successful runs show substantial variance in convergence time. This instability affects our Snake experiments; results can vary by 20-30\% across seeds.
 
-A related failure mode is catastrophic forgetting, where agents suddenly lose previously learned behaviors. \textbf{Figure \ref{fig:stage0_fail}} shows an extreme example from our curriculum learning experiments: an agent's win rate against a static opponent drops from near 100\% to 0\% after 800K training steps. Rather than maintaining stable performance, the model suddenly fit pathological patterns---likely overfitting to specific opponent behaviors or discovering degenerate strategies that maximize short-term reward while abandoning generalizable skills.
+A related failure mode is catastrophic forgetting, where agents suddenly lose previously learned behaviors. \textbf{Figure \ref{fig:stage0_fail}} shows an extreme example from our curriculum learning experiments: an agent's win rate against a static opponent drops from near 100\% to 0\% after 800K training steps. Rather than maintaining stable performance, the model suddenly fit pathological patterns, likely overfitting to specific opponent behaviors or discovering degenerate strategies that maximize short-term reward while abandoning generalizable skills.
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.5\textwidth]{pendulum_results.png}
-\caption{High variance in deep RL \cite{irpan2018deep}.}
+\caption{High variance in deep RL.}
 \label{fig:pendulum_variance}
 \end{figure}
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.5\textwidth]{stage_0_fail.png}
+\includegraphics[width=0.4\textwidth]{stage_0_fail.png}
 \caption{Training instability in curriculum learning.}
 \label{fig:stage0_fail}
 \end{figure}
 
-Beyond these fundamental challenges, hyperparameter sensitivity remains a concern: parameters optimized for one grid size may not transfer to others, and automated hyperparameter search could address this but increases computational costs. However, our grid size generalization experiments demonstrate that feature-based representations transfer well: a model trained on 10x10 achieves 25-57 average scores on grids from 8x8 to 20x20 without retraining (see Table \ref{tab:grid_generalization}). Finally, agents face a maximum score ceiling, as maintaining survival becomes increasingly difficult as the snake grows. Our agents typically plateau at 25-40\% of the theoretical maximum score.
+Beyond these fundamental challenges, hyperparameter sensitivity remains a concern: parameters optimized for one grid size may not transfer to others, and automated hyperparameter search could address this but increases computational costs. However, our grid size generalization experiments demonstrate that feature-based representations transfer well: a model trained on 10x10 achieves 20-52 average scores on grids from 8x8 to 20x20 without retraining (see Table \ref{tab:grid_generalization}). Finally, agents face a maximum score ceiling, as maintaining survival becomes increasingly difficult as the snake grows. Our agents typically plateau at 13-33\% of the theoretical maximum score.
 
 \subsection{Future Work}
 
 A critical infrastructure improvement would be parallelizing environment simulation across CPU cores in addition to GPU acceleration. Currently, Python's Global Interpreter Lock (GIL) prevents true multi-threaded CPU parallelism, limiting throughput despite GPU batch processing. Our current implementation trains all 9 algorithms for 3000 episodes each in approximately 35 minutes for basic features and 2 hours for flood-fill features on a single RTX 4070 GPU. Migrating to Python 3.13's free-threaded mode, using multiprocessing with shared memory, or implementing environment logic in a GIL-free language like Rust could enable CPU-GPU hybrid parallelism and substantially reduce training time.
 
-For state representation, alternative feature sets such as ray-casting (distance to obstacles in multiple directions) or local grid windows could be compared against flood-fill. CNN architectures should be evaluated on larger grids (50x50 or larger) where raw pixel inputs may outperform hand-crafted features due to increased spatial complexity. Hyperparameter sensitivity warrants systematic study: learning rates, network depths, batch sizes, and entropy coefficients all interact in ways our current experiments do not fully characterize. Automated hyperparameter search (Bayesian optimization, population-based training) could identify better configurations than manual tuning.
+For state representation, alternative feature sets such as ray-casting (distance to obstacles in multiple directions) or local grid windows could be compared against flood-fill. Extended representations incorporating tail-related features (direction to tail, normalized distance) or escape route counts could help agents follow their tail for safety in dense configurations, though preliminary experiments suggested prohibitive training times. CNN architectures should be evaluated on larger grids (50x50 or larger) where raw pixel inputs may outperform hand-crafted features due to increased spatial complexity. Hyperparameter sensitivity warrants systematic study: learning rates, network depths, batch sizes, and entropy coefficients all interact in ways our current experiments do not fully characterize. Automated hyperparameter search (Bayesian optimization, population-based training) could identify better configurations than manual tuning.
 
 For competitive two-snake training, our experiments reveal intriguing dynamics. At 2M steps, the larger 256x256 network dominates (51\% vs 31\%), but extended training to 14M steps reverses this (33\% vs 42\%). Meanwhile, curriculum learning produces balanced competition (40\% vs 38\%). Further investigation could explore whether training beyond 14M steps continues to favor smaller networks, or whether curriculum learning's balanced outcomes represent a fundamentally different optimization landscape.
 
 Hierarchical RL could decompose the problem into high-level planning (path to food) and low-level control (collision avoidance), improving both learning efficiency and interpretability. N-step returns and more sophisticated distributional approaches could further enhance Rainbow DQN's already strong performance. Our death cause analysis suggests an interesting reward design direction: differential death penalties based on death type. Currently, all deaths receive the same penalty (-10), but wall and self-collision deaths represent tactical errors while entrapment represents strategic failure. Penalizing wall/self deaths more heavily (e.g., -15) while reducing the entrapment penalty (e.g., -5) could encourage agents to attempt escape from tight situations rather than accepting entrapment.
 
 Transfer learning techniques like progressive networks or policy distillation could enable knowledge transfer between grid sizes, while population-based training for competitive scenarios could evolve diverse strategies rather than converging to a single equilibrium, producing more robust agents. Model-based approaches that learn a world model could improve sample efficiency by enabling planning and imagination. Finally, attention mechanisms or graph neural networks could help agents better reason about long-range spatial dependencies as the snake grows.
-
-Our key findings are threefold: (1) flood-fill features dramatically reduce entrapment deaths and boost performance by 50-100\% over basic features, (2) Rainbow DQN achieves the highest scores but PPO offers competitive performance with simpler implementation, and (3) competitive multi-agent training exhibits complex dynamics where network capacity advantages depend on training duration---larger networks dominate early (51\% vs 31\% at 2M steps) but smaller networks excel with extended training (42\% vs 33\% at 14M steps), while curriculum learning produces balanced competition (40\% vs 38\%).
 
 %==============================================================================
 % REFERENCES
@@ -1165,40 +1154,33 @@ This appendix presents a comprehensive comparison of all implemented reinforceme
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.75\textwidth]{appendix_basic_scores.png}
-\caption{Training scores with basic features.}
+\caption{Training scores (basic features).}
 \label{fig:appendix_basic_scores}
 \end{figure}
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.75\textwidth]{appendix_basic_deaths.png}
-\caption{Death causes by algorithm (basic features).}
+\caption{Death causes (basic features).}
 \label{fig:appendix_basic_deaths}
 \end{figure}
 
 \subsection{Flood-Fill Features Performance}
 
-\textbf{Figure \ref{fig:appendix_floodfill_scores}} shows training with flood-fill features (13-dimensional state). Rainbow DQN achieves the best performance (37.22 average, max 59), followed closely by PPO (35.27 average, max 58). Standard DQN variants converge around 22-27 average score. A2C and REINFORCE show minimal progress over 3,000 episodes. Extended training experiments reveal that A2C requires approximately 10,000 episodes before learning begins, eventually reaching scores of 17+ at 20,000 episodes, while REINFORCE fails to learn even with 20,000 episodes (see Figure~\ref{fig:extended_training}). \textbf{Figure \ref{fig:appendix_floodfill_deaths}} demonstrates how flood-fill reduces entrapment deaths from 67-86\% down to 44-50\% for successful algorithms, enabling higher scores.
+\textbf{Figure \ref{fig:appendix_floodfill_scores}} shows training with flood-fill features (13-dimensional state). Rainbow DQN achieves the best performance (37.22 average, max 59), followed closely by PPO (35.27 average, max 58). Standard DQN variants converge around 22-27 average score. A2C and REINFORCE show minimal progress over 3,000 episodes, suggesting they require significantly more training time or careful hyperparameter tuning for this task. \textbf{Figure \ref{fig:appendix_floodfill_deaths}} demonstrates how flood-fill reduces entrapment deaths from 67-86\% down to 44-50\% for successful algorithms, enabling higher scores.
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.75\textwidth]{appendix_floodfill_scores.png}
-\caption{Training scores with flood-fill features.}
+\caption{Training scores (flood-fill features).}
 \label{fig:appendix_floodfill_scores}
 \end{figure}
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.75\textwidth]{appendix_floodfill_deaths.png}
-\caption{Death causes by algorithm (flood-fill features).}
+\caption{Death causes (flood-fill features).}
 \label{fig:appendix_floodfill_deaths}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.75\textwidth]{extended_training_a2c_reinforce.png}
-\caption{Extended training: A2C vs REINFORCE.}
-\label{fig:extended_training}
 \end{figure}
 
 The comparison between basic and flood-fill features clearly demonstrates that state representation has a larger impact on performance than algorithm choice. Rainbow DQN with flood-fill features achieves approximately double the score of DQN with basic features (37 vs 17). Notably, the performance gap between feature sets (~10-20 score improvement) often exceeds the gap between algorithms (~5-10 score difference within the same feature set). The failure of A2C and REINFORCE in both settings suggests these simpler policy gradient methods may require significantly more training episodes or careful hyperparameter tuning for this task.
